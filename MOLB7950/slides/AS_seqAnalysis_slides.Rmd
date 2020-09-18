@@ -1,0 +1,522 @@
+---
+title: "Alternative splicing analysis: sequence analysis"
+author: "Matthew Taliaferro"
+output:
+  xaringan::moon_reader:
+    css: ["xaringan-themer.css", "slides.css"]
+    # logo: img/icon.png
+    lib_dir: libs
+    nature:
+      ratio: "16:9"
+      highlightStyle: github 
+      highlightLines: true
+      countIncrementalSlides: false
+      navigation:
+        scroll: false
+---
+
+
+
+```{r run-setup---dont-delete, child = "slide-setup.Rmd"}
+```
+
+layout: true
+
+<div class="my-footer">
+  <span>
+  Matthew Taliaferro | Alternative splicing: sequence analysis | <a href="https://molb7950.netlify.app/">MOLB 7950 website</a>
+  </span>
+</div> 
+
+---
+
+# Contact Info 
+
+### Greetings experimentalist humans `r emo::ji("wave")`
+
+<i class="fa fa-envelope"></i> &nbsp; [matthew.taliaferro@cuanschutz.edu](mailto:matthew.taliaferro@cuanschutz.edu) <br>
+
+---
+class: highlight-last-item
+
+# Learning Objectives
+
+###By the end of the class, you should be able to:
+
+- Understand how genome-scale experiments can inform biochemical mechanisms
+
+--
+- Convert genome coordinates into sequences programmatically
+
+--
+- Count the occurrences of small sequences (kmers) in a sequence file
+
+--
+- Identify kmers enriched in one sequence set vs. another
+
+---
+
+# Rigor & Reproducibility
+
+.pull-left[As with all computational **experiments** (yes, they are experiments, don't let your pipette-toting friends tell you otherwise), keeping track of what you did is key. In the old days, I kept a written notebook of commands that I ran.  Sounds silly, but there were many times that I went back to that notebook to see exactly what the parameters were for a given run using a piece of software.
+
+Today, there are better options. You are using one of the better ones right now.  Notebooks, including RMarkdown (mainly for R) and Jupyter (mainly for Python), are a great way to keep track of what you did as well as give justification or explanation for your analyses using plain 'ol English.
+
+
+Trust me, one day you will be glad you used them. The Methods section of your paper is never fun to write without them.]
+
+.pull-right[.center[
+```{r echo = FALSE, out.width = '35%'}
+knitr::include_graphics('img/Rmarkdown.jpg')
+```
+]
+
+.center[
+```{r echo = FALSE, out.width = '35%'}
+knitr::include_graphics('img/jupyter.png')
+```
+]]
+
+
+---
+class: highlight-last-item
+
+# Problem Set and Grading Rubric
+
+Today's problem set is composed of 1 problem, but it contains 2 parts.  You are tasked with taking two fasta files of intronic sequences. We want to know the relative abundance of all 5mers in the two sequences.
+
+--
+- In part 1, you will calculate a relative enrichment for each 5mer between the two sequence files as a log2 fold ratio. This problem is worth 50% of the total points.
+
+--
+- In the second, for each 5mer, you will calculate a p value for this enrichment using a binomial test.  You will then plot the results from both parts as a volcano plot to identify the 5mer that is *most* enriched in one set vs. another.
+
+
+---
+
+# Further reading
+
+If you are interested, here is a little more information about today's topic that you can read later:
+
+.pull-left[ 
+- The [paper](https://pubmed.ncbi.nlm.nih.gov/24637117/) describing the RBFOX2 knockdown data we will be using today
+- A [paper](https://pubmed.ncbi.nlm.nih.gov/29883606/) where the authors derived preferred RNA sequence binding motifs for many RBPs, including RBFOX2
+]
+
+---
+
+# Overview
+
+.pull-left[
+The last two sessions we have used `STAR` to align RNAseq reads to the genome (or transcriptome, if you prefer) and then used `rMATS` to take those alignments and quantify the inclusion of alternative exons in every sample.
+
+The data we used for this came from a study where the authors sequenced RNA from mouse ESCs that had been treated with either shRNAs against RBFOX2 or control shRNAs.
+]
+.pull-right[
+```{r echo = FALSE, out.width = '120%'}
+knitr::include_graphics('img/flowchart.png')
+```
+]
+
+---
+
+# Overview
+
+.pull-far-left[
+Today we will focus on the on the sequences that surround exons that we identified as sensitive to RBFOX2 loss.
+
+As we discussed last time, many RBPs exert their function on RNAs by binding them, and many RBPs have a preferred RNA sequence that they like to bind. It then follows that the functional RNA targets of an RBP should be enriched for the RBP's preferred binding sequence relative to nontargets.
+
+]
+
+.oppo-far-left[
+```{r echo = FALSE, out.width = '100%'}
+knitr::include_graphics('img/affectedexons.png')
+```
+]
+
+---
+
+#Overview
+
+.pull-left[
+Another way to say what we are going to do today is that we are going to do some
+
+.big[
+.color-blink[
+COOL ANALYSES
+]
+]
+
+.blinking[
+.big[
+`r emo::ji("sunglasses")` `r emo::ji("sunglasses")` `r emo::ji("sunglasses")` `r emo::ji("sunglasses")` `r emo::ji("sunglasses")`
+]
+]
+]
+
+
+.pull-right[
+```{r echo = FALSE, out.width = '120%'}
+knitr::include_graphics('img/flowchart_ASanalyses.png')
+```
+]
+
+---
+
+# How RBPs regulate alternative splicing
+.pull-left[
+As we've discussed, many RBPs regulate alternative splicing by binding sequences near alternative exons. However, it's slightly more complicated than that. 
+
+For many RBPs, .orange[*where*] they bind relative to the exon can determine their activity.
+
+For example, a given RBP might promote .green[inclusion] of the exon if it binds in the intron upstream of it and might promote .hotpink[exlcusion] if it binds the intron downstream.
+
+.big[Same RBP, two different results!]
+
+This means we will have to treat the introns upstream and downstream of affected exons separately. We will also need to treat exons that become .green[more] and .hotpink[less] included separately.
+]
+
+.pull-right[
+```{r echo = FALSE, out.width = '120%'}
+knitr::include_graphics('img/RBPposition.png')
+```
+]
+
+---
+
+# Relevant sequence regions
+
+The sequences we are interested in will immediately flank exons that we have identified as sensitive to the loss of RBFOX2.
+
+Specifically, we are interested in the 150 nt *upstream* (i.e. 5') of the exon and the 150 nt *downstream* (i.e. 3') of the exon.
+
+> Note: You are dealing with RNA, not DNA. Strand matters. If the transcript is on the minus strand, the sequence upstream of the exon will have *higher* coordinates in genome space, and it will also be the *reverse complement* of the typical genome sequence given at that location.
+
+```{r echo = FALSE, out.width = '120%'}
+knitr::include_graphics('img/intronseqs.png')
+```
+
+---
+
+# Identifying RBFOX2-sensitive events
+
+Our first step will be to identify exons that are sensitive to RBFOX2 loss. Let's read in an `rMATS` output table and then filter it based on read counts as we did last time.
+.code[
+```{r readrMATS}
+rmats.filtered <- read.table('data/SE.MATS.JC.txt', header = T) %>%
+  #Split the replicate read counts that are separated by commas into different columns
+  separate(., col = IJC_SAMPLE_1, into = c('IJC_S1R1', 'IJC_S1R2', 'IJC_S1R3', 'IJC_S1R4'), sep = ',', remove = T, convert = T) %>%
+  separate(., col = SJC_SAMPLE_1, into = c('SJC_S1R1', 'SJC_S1R2', 'SJC_S1R3', 'SJC_S1R4'), sep = ',', remove = T, convert = T) %>%
+  separate(., col = IJC_SAMPLE_2, into = c('IJC_S2R1', 'IJC_S2R2', 'IJC_S2R3', 'IJC_S2R4'), sep = ',', remove = T, convert = T) %>%
+  separate(., col = SJC_SAMPLE_2, into = c('SJC_S2R1', 'SJC_S2R2', 'SJC_S2R3', 'SJC_S2R4'), sep = ',', remove = T, convert = T) %>%
+  #Calculate read counts per exon per sample
+  mutate(., S1R1counts = IJC_S1R1 + SJC_S1R1) %>%
+  mutate(., S1R2counts = IJC_S1R2 + SJC_S1R2) %>%
+  mutate(., S1R3counts = IJC_S1R3 + SJC_S1R3) %>%
+  mutate(., S1R4counts = IJC_S1R4 + SJC_S1R4) %>%
+  mutate(., S2R1counts = IJC_S2R1 + SJC_S2R1) %>%
+  mutate(., S2R2counts = IJC_S2R2 + SJC_S2R2) %>%
+  mutate(., S2R3counts = IJC_S2R3 + SJC_S2R3) %>%
+  mutate(., S2R4counts = IJC_S2R4 + SJC_S2R4) %>%
+  #Filter on read counts
+  filter(., S1R1counts >= 20 & S1R2counts >= 20 & S1R3counts >= 20 & S1R4counts >= 20 &
+           S2R1counts >= 20 & S2R2counts >= 20 & S2R3counts >= 20 & S2R4counts >= 20) %>%
+  #Get rid of extraneous columns
+  dplyr::select(., c(geneSymbol, chr, strand, exonStart_0base, exonEnd, FDR, IncLevelDifference)) %>%
+  as_tibble(.)
+```
+]
+
+---
+
+# Identifying RBFOX2-sensitive events
+
+.pull-left[
+.code[
+```{r rMATShead, eval = FALSE}
+head(rmats.filtered, n = 10)
+```
+]
+]
+
+.pull-right[
+.plot[
+```{r rMATShead-out, ref.label='rMATShead', echo = FALSE}
+```
+
+]
+]
+
+From this table, we can see where each exon starts and ends, as well as the chromosome and strand that it is on. We can use this information to get the upstream and downstream intronic regions we want.
+
+We also have the FDR and difference in PSI values between the two conditions here (RBFOX2 kd - Control kd). For the purposes of our analyses, we will focus on exons whose inclusion .hotpink[decreases] upon RBFOX2 knockdown. This means we will want exons with positive values for `IncLevelDifference`.
+
+---
+
+# Defining sensitive and insensitive exons
+
+.pull-left[
+We need to define a set of exons whose inclusion decreases upon RBFOX2 knockdown and a set of exons whose inclusion doesn't change.
+.code[
+```{r defineexons, eval = FALSE}
+psis.sensitive <- filter(rmats.filtered, FDR < 0.05 & IncLevelDifference < 0) #only those whose PSI decreases
+psis.insensitive <- filter(rmats.filtered, FDR >= 0.5)
+
+nrow(psis.sensitive)
+nrow(psis.insensitive)
+```
+]
+]
+
+.pull-right[
+.plot[
+```{r defineexons-out, ref.label='defineexons', echo = FALSE}
+```
+]
+]
+
+OK so we have 114 exons that are .orange[sensitive] to RBFOX2 knockdown and 4087 exons that are .blue[insensitive]. 
+
+Now we need to get the coordinates of the intronic regions we are interested in that surround these exons.
+
+---
+
+# Get sequences of intronic regions flanking affected exons
+
+There are many ways that we could do this, but we are going to use our old friend PYTHON `r emo::ji("snake")`.
+
+First, let's write a file that contains the exonic coordinates for all of the exons in our .orange[sensitive] and .blue[insensitive] groups.
+
+.code[
+```{r writecoords, eval = TRUE}
+psis.sensitive %>%
+  #We only want the columns that tell us about where a sequence is (chr, strand, exonic boundaries)
+  dplyr::select(., -c(FDR, IncLevelDifference)) %>%
+  write.table(., file = 'data/sensexons.coords.txt', sep = '\t', row.names = F, col.names = F, quote = F)
+
+psis.insensitive %>%
+  dplyr::select(., -c(FDR, IncLevelDifference)) %>%
+  write.table(., file = 'data/insensexons.coords.txt', sep = '\t', row.names = F, col.names = F, quote = F)
+```
+]
+
+---
+
+# Get sequences of intronic regions flanking affected exons
+
+Let's take a look at those files to make sure they are what we want.
+
+.pull-left[
+.code[
+```{bash lookatexoncoords, eval = FALSE}
+head -n 5 data/sensexons.coords.txt
+```
+]
+]
+
+.pull-right[
+.plot[
+```{bash lookatexoncoords-out, ref.label='lookatexoncoords', echo = FALSE}
+```
+]
+]
+
+As a reminder, the columns of this tab-delimited file are:
+- Gene name
+- chromosome
+- strand
+- beginning of exon
+- end of exon
+
+---
+
+#From coordinate to sequence
+
+A given nucleotide can be defined in the genome with 3 parameters: chromosome, coordinate, and strand.  Luckily, rMATS records these data for the alternative exon as well as it's two neighbor exons, upstream and downstream.  Consider the first event above from the gene Mff. The alternative exon begins at coordinate 82741817 in chr1 and is on the + strand. The exon extends until coordinate 82741976. OK so how can we go from this data to actual sequence, you know, As and Cs and Gs and Us and such?
+
+When we were learning python `r emo::ji("snake")` in the bootcamp, we talked about slicing strings using indicies.
+
+.pull-left[
+.code[
+```{python smallchrom, eval = FALSE}
+#A very short chrosomsome
+chr = 'ACTGATCGATCATCGATCGGAATCG'
+#My sequence of interest begins at 
+#(0-based) 4 and goes up to 
+#(but doesn't include!!) 12
+myseq = chr[4:12]
+print(myseq)
+```
+]
+]
+
+.pull-right[
+.plot[
+```{python smallchrom-out, ref.label='smallchrom', echo = FALSE}
+```
+]
+]
+
+---
+
+#From coordinate to sequence
+
+So you can see what's going on here, but imagine that we had more than one chromosome, which all interesting organisms do (sorry E. coli). How would we deal with that? Here our old friend the dictionary will come to the rescue. The keys in our dictionary will be chromosome names and their values will be the sequence of the chromosome.
+
+.pull-left[
+.code[
+```{python twochroms, eval = FALSE}
+#A very short chrosomsome
+chr1seq = 'ACTGATCGATCATCGATCGGAATCG'
+chr2seq = 'TGATCGATCGATCGATCGATCGAGC'
+
+genome = {}
+genome['chr1'] = chr1seq
+genome['chr2'] = chr2seq
+
+#My sequence of interest begins at 
+#(0-based) 4 of chr1 and goes up 
+#to (but doesn't include!!) 12
+myseq = genome['chr1'][4:12]
+print(myseq)
+```
+]
+]
+
+.pull-right[
+.plot[
+```{python twochroms-out, ref.label='twochroms', echo = FALSE}
+```
+]
+]
+
+---
+
+#From coordinate to sequence
+
+We are ready to take exonic coordinates and retrieve their flanking intronic sequences. The `biopython` library has a set of useful functions here. You can give it a genome sequence, and it will make a dictionary that is of the structure we described above where keys are chromosome names and values are sequences. For simplicity here, we will pretend that the entire of the genome is chromosome 19.
+
+.scroll-box-20[
+.code[
+```{python chr19seq, eval = FALSE}
+from Bio import SeqIO
+
+genomefasta = 'data/chr19.fasta'
+#Make a Biopython 'fasta object' of the genome
+genomefasta_obj = SeqIO.parse(open(genomefasta, 'r'), 'fasta')
+#Make a dictionary of the 'genome'
+seq_dict = SeqIO.to_dict(genomefasta_obj)
+
+
+#Now let's read in the coordinate files we made earlier.
+#For each file, we will make two fastas: one of the upstream 
+#intronic 150 nt and one of the downstream intronic 150 nt
+with open('data/sensexons.coords.txt', 'r') as coordfh, open('data/sensexons.chr19.upstream.fa', 'w') as outfh:
+  for line in coordfh:
+    #Remove trailing newline characters and turn each line into a list
+    line = line.strip().split('\t')
+    chrm = line[1]
+    strand = line[2]
+    exonstart = int(line[3])
+    exonstop = int(line[4])
+    seqid = ('_').join(line)
+    
+    #If this exon wasn't on chr19, skip it because we only have genome sequences for chr19
+    if chrm != 'chr19':
+      continue
+      
+    #If this is a positive strand gene, things are pretty straightfoward
+    if strand == '+':
+      upstreamintstart = exonstart - 150
+      upstreamintend = exonstart
+      seq = seq_dict[chrm].seq[upstreamintstart : upstreamintend].transcribe()
+    #If it's a negative strand gene the upstream intron (in the RNA sense) 
+    #is actually after this intron (in the genome sense)
+    #AND we need to take the reverse complement
+    elif strand == '-':
+      upstreamintstart = exonstop
+      upstreamintend = exonstop + 150
+      #biopython has a reverse complement function
+      seq = seq_dict[chrm].seq[upstreamintstart : upstreamintend].reverse_complement().transcribe()
+      
+    #Write sequence in fasta format
+    outfh.write ('>' + seqid + '\n' + str(seq) + '\n')
+```
+]
+]
+
+---
+
+# From coordinate to sequence
+
+Let's take a look at the sequence file we made of the intronic regions that are *upstream* of RBFOX2-.orange[sensitive] exons.
+
+.pull-left[
+.code[
+```{bash lookatfasta, eval = FALSE}
+head data/sensexons.chr19.upstream.fa
+```
+]
+]
+
+.pull-right[
+.plot[
+```{bash lookatfasta-out, ref.label='lookatfasta', echo = FALSE}
+```
+]
+]
+
+---
+
+# Counting kmers
+
+
+Now that we have our sequences, we want to ask which kmers are enriched in the sensexons sequences relative to the insensexons sequences.  Kmers are just nucleotide sequences of length k. Often in these types of analyses, we will look for the enrichment of 5mers or 6mers (k = 5 or 6). Here, we will look at 5mers.
+
+So what we want to do is essentially ask, for every possible 5mer, what is the density of that 5mer in the sens sequences and how does it compare to the density in the insens sequences?  Another way to ask that is "for all of the kmers in the sequences, what fraction of them are kmer X"?  So we need to have a way to look at a sequence and count how many times each kmer occurs in that sequence.  Luckily, we can do that fairly easily with `python` `r emo::ji("snake")`.
+
+Our overall strategy is below:
+```{r echo = FALSE, out.width = '80%'}
+knitr::include_graphics('img/kmers.png')
+```
+
+---
+
+# Counting kmers
+.scroll-box-16[
+.code[
+```{python kmersexample, eval = FALSE}
+testseq = 'AUUAGCUAGCUAGCGACGCAGUACGUACGUAGCUAGCUAGCUAGUAUGCAUGAUGCUGACUG'
+
+#All we need to do is take a window that is 5 nt wide 
+#and slide it along the sequence one nt at a time, 
+#recording every kmer that is in a window
+kmercounts = {} #{kmer : number of times we observe that kmer}
+
+k = 5
+
+for i in range(len(testseq) - k + 1):
+  kmer = testseq[i : i+k]
+  #If we haven't seen this kmer before, its count is 1
+  if kmer not in kmercounts:
+    kmercounts[kmer] = 1
+  #If we have seen this kmer before, add one to its count
+  elif kmer in kmercounts:
+    kmercounts[kmer] +=1
+    
+print(kmercounts)
+```
+]
+]
+
+.plot[
+```{python kmersexample-out, ref.label='kmersexample', echo = FALSE}
+```
+]
+
+Now that we can count occurences of kmers in a sequence, all that is left is doing that for every sequence in a fasta file and then comparing those counts across files.
+
+In today's exercises we will do just that. Remember, our goal is to learn something about RBFOX2 based on the sequences that are enriched near exons that are sensitive to its presence.
+
+

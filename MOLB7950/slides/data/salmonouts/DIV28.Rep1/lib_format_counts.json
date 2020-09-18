@@ -1,0 +1,22 @@
+{
+    "read_files": "( /beevol/home/taliaferro/data/TXpsi/NeuronDifferentiation/RawReads/DIV28.Rep1_1.fastq.gz, /beevol/home/taliaferro/data/TXpsi/NeuronDifferentiation/RawReads/DIV28.Rep1_2.fastq.gz )",
+    "expected_format": "IU",
+    "compatible_fragment_ratio": 1.0,
+    "num_compatible_fragments": 27853096,
+    "num_assigned_fragments": 27853096,
+    "num_frags_with_consistent_mappings": 26212260,
+    "num_frags_with_inconsistent_or_orphan_mappings": 2187318,
+    "strand_mapping_bias": 0.4993916587123735,
+    "MSF": 0,
+    "OSF": 0,
+    "ISF": 13122076,
+    "MSR": 0,
+    "OSR": 0,
+    "ISR": 13090184,
+    "SF": 1072883,
+    "SR": 1114435,
+    "MU": 0,
+    "OU": 0,
+    "IU": 0,
+    "U": 0
+}

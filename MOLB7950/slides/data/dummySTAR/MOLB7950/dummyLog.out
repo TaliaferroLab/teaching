@@ -1,0 +1,152 @@
+STAR version=2.7.5a
+STAR compilation time,server,dir=Tue Jun 16 16:47:12 GMT 2020 :/Users/travis/build/alexdobin/travis-tests/STARcompile/source
+##### Command Line:
+STAR --runMode alignReads --genomeDir dummySTARindex/ --readFilesIn MOLB7950_1.fastq.gz MOLB7950_2.fastq.gz --readFilesCommand gunzip -c --outFileNamePrefix ./MOLB7950/dummy --outSAMtype BAM SortedByCoordinate
+##### Initial USER parameters from Command Line:
+outFileNamePrefix                 ./MOLB7950/dummy
+###### All USER parameters from Command Line:
+runMode                       alignReads     ~RE-DEFINED
+genomeDir                     dummySTARindex/     ~RE-DEFINED
+readFilesIn                   MOLB7950_1.fastq.gz   MOLB7950_2.fastq.gz        ~RE-DEFINED
+readFilesCommand              gunzip   -c        ~RE-DEFINED
+outFileNamePrefix             ./MOLB7950/dummy     ~RE-DEFINED
+outSAMtype                    BAM   SortedByCoordinate        ~RE-DEFINED
+##### Finished reading parameters from all sources
+
+##### Final user re-defined parameters-----------------:
+runMode                           alignReads
+genomeDir                         dummySTARindex/
+readFilesIn                       MOLB7950_1.fastq.gz   MOLB7950_2.fastq.gz   
+readFilesCommand                  gunzip   -c   
+outFileNamePrefix                 ./MOLB7950/dummy
+outSAMtype                        BAM   SortedByCoordinate   
+
+-------------------------------
+##### Final effective command line:
+STAR   --runMode alignReads   --genomeDir dummySTARindex/   --readFilesIn MOLB7950_1.fastq.gz   MOLB7950_2.fastq.gz      --readFilesCommand gunzip   -c      --outFileNamePrefix ./MOLB7950/dummy   --outSAMtype BAM   SortedByCoordinate   
+----------------------------------------
+
+Number of fastq files for each mate = 1
+
+   Input read files for mate 1 :
+-rw-r--r--  1 mtaliaferro  staff  6727838 Jun 24 14:36 MOLB7950_1.fastq.gz
+
+   readsCommandsFile:
+exec > "./MOLB7950/dummy_STARtmp/tmp.fifo.read1"
+echo FILE 0
+gunzip   -c      "MOLB7950_1.fastq.gz"
+
+
+   Input read files for mate 2 :
+-rw-r--r--  1 mtaliaferro  staff  6406305 Jun 24 14:36 MOLB7950_2.fastq.gz
+
+   readsCommandsFile:
+exec > "./MOLB7950/dummy_STARtmp/tmp.fifo.read2"
+echo FILE 0
+gunzip   -c      "MOLB7950_2.fastq.gz"
+
+WARNING: --limitBAMsortRAM=0, will use genome size as RAM limit for BAM sorting
+Finished loading and checking parameters
+Reading genome generation parameters:
+### /Users/mtaliaferro/miniconda2/envs/three/bin/STAR   --runMode genomeGenerate   --genomeDir /Users/mtaliaferro/Documents/Denver/Teaching/MOLB7950/AltSplicing/dummySTAR/dummySTARindex   --genomeFastaFiles /Users/mtaliaferro/Documents/Denver/Teaching/MOLB7950/AltSplicing/dummySTAR/chr19.fasta      --genomeSAindexNbases 11   --sjdbGTFfile /Users/mtaliaferro/Documents/Denver/Teaching/MOLB7950/AltSplicing/dummySTAR/MOLB7950.gff3   --sjdbGTFtagExonParentTranscript Parent   --sjdbOverhang 100
+### GstrandBit=32
+versionGenome                 2.7.4a     ~RE-DEFINED
+genomeType                    Full     ~RE-DEFINED
+genomeFastaFiles              /Users/mtaliaferro/Documents/Denver/Teaching/MOLB7950/AltSplicing/dummySTAR/chr19.fasta        ~RE-DEFINED
+genomeSAindexNbases           11     ~RE-DEFINED
+genomeChrBinNbits             18     ~RE-DEFINED
+genomeSAsparseD               1     ~RE-DEFINED
+genomeTransformType           None     ~RE-DEFINED
+genomeTransformVCF            -     ~RE-DEFINED
+sjdbOverhang                  100     ~RE-DEFINED
+sjdbFileChrStartEnd           -        ~RE-DEFINED
+sjdbGTFfile                   /Users/mtaliaferro/Documents/Denver/Teaching/MOLB7950/AltSplicing/dummySTAR/MOLB7950.gff3     ~RE-DEFINED
+sjdbGTFchrPrefix              -     ~RE-DEFINED
+sjdbGTFfeatureExon            exon     ~RE-DEFINED
+sjdbGTFtagExonParentTranscriptParent     ~RE-DEFINED
+sjdbGTFtagExonParentGene      gene_id     ~RE-DEFINED
+sjdbInsertSave                Basic     ~RE-DEFINED
+genomeFileSizes               63222091   493482465        ~RE-DEFINED
+Genome version is compatible with current STAR
+Number of real (reference) chromosomes= 1
+1	chr19	61431566	0
+--sjdbOverhang = 100 taken from the generated genome
+Started loading the genome: Wed Jun 24 19:34:50 2020
+
+Genome: size given as a parameter = 63222091
+SA: size given as a parameter = 493482465
+SAindex: size given as a parameter = 1
+Read from SAindex: pGe.gSAindexNbases=11  nSAi=5592404
+nGenome=63222091;  nSAbyte=493482465
+GstrandBit=32   SA number of indices=119632112
+Shared memory is not used for genomes. Allocated a private copy of the genome.
+Genome file size: 63222091 bytes; state: good=1 eof=0 fail=0 bad=0
+Loading Genome ... done! state: good=1 eof=0 fail=0 bad=0; loaded 63222091 bytes
+SA file size: 493482465 bytes; state: good=1 eof=0 fail=0 bad=0
+Loading SA ... done! state: good=1 eof=0 fail=0 bad=0; loaded 493482465 bytes
+Loading SAindex ... done: 24466875 bytes
+Finished loading the genome: Wed Jun 24 19:34:50 2020
+
+Sum of all Genome bytes: 103321046
+Sum of all SA bytes: 51048205801
+Sum of all SAi bytes: 2389736133
+Processing splice junctions database sjdbN=8051,   pGe.sjdbOverhang=100 
+alignIntronMax=alignMatesGapMax=0, the max intron size will be approximately determined by (2^winBinNbits)*winAnchorDistNbins=589824
+Starting to map file # 0
+mate 1:   MOLB7950_1.fastq.gz
+mate 2:   MOLB7950_2.fastq.gz
+Thread #0 end of input stream, nextChar=-1
+BAM sorting: 185551 mapped reads
+BAM sorting bins genomic start loci:
+1	0	3376559
+2	0	3456881
+3	0	3604154
+4	0	3817138
+5	0	3896396
+6	0	3948719
+7	0	4035503
+8	0	4040319
+9	0	4104824
+10	0	4114558
+11	0	4153263
+12	0	4193028
+13	0	4195001
+14	0	4286066
+15	0	4292410
+16	0	4324767
+17	0	4614985
+18	0	4779412
+19	0	4883665
+20	0	4962413
+21	0	5049548
+22	0	5085321
+23	0	5099727
+24	0	5108219
+25	0	5274281
+26	0	5286598
+27	0	5365837
+28	0	5454276
+29	0	5492672
+30	0	5493611
+31	0	5602325
+32	0	5671740
+33	0	5742228
+34	0	5758642
+35	0	5796486
+36	0	5797612
+37	0	5799184
+38	0	5800543
+39	0	5801357
+40	0	5802258
+41	0	5898522
+42	0	6012573
+43	0	6052570
+44	0	6058245
+45	0	6059185
+46	0	6070029
+47	0	6134671
+48	0	6232548
+Completed: thread #0
+Jun 24 19:35:17 ..... started sorting BAM
+Max memory needed for sorting = 1448932
+ALL DONE!

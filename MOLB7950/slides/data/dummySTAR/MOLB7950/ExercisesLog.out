@@ -1,0 +1,154 @@
+STAR version=2.7.5a
+STAR compilation time,server,dir=Tue Jun 16 16:47:12 GMT 2020 :/Users/travis/build/alexdobin/travis-tests/STARcompile/source
+##### Command Line:
+/Users/mtaliaferro/miniconda2/envs/three/bin/STAR --runMode alignReads --outFilterMultimapNmax 1 --genomeDir /Users/mtaliaferro/Documents/Denver/Teaching/MOLB7950/AltSplicing/dummySTAR/dummySTARindex/ --readFilesIn /Users/mtaliaferro/Documents/Denver/Teaching/MOLB7950/AltSplicing/dummySTAR/Exercises_1.fastq.gz /Users/mtaliaferro/Documents/Denver/Teaching/MOLB7950/AltSplicing/dummySTAR/Exercises_2.fastq.gz --readFilesCommand gunzip -c --outFileNamePrefix /Users/mtaliaferro/Documents/Denver/Teaching/MOLB7950/AltSplicing/dummySTAR/MOLB7950/Exercises --outSAMtype BAM SortedByCoordinate
+##### Initial USER parameters from Command Line:
+outFileNamePrefix                 /Users/mtaliaferro/Documents/Denver/Teaching/MOLB7950/AltSplicing/dummySTAR/MOLB7950/Exercises
+###### All USER parameters from Command Line:
+runMode                       alignReads     ~RE-DEFINED
+outFilterMultimapNmax         1     ~RE-DEFINED
+genomeDir                     /Users/mtaliaferro/Documents/Denver/Teaching/MOLB7950/AltSplicing/dummySTAR/dummySTARindex/     ~RE-DEFINED
+readFilesIn                   /Users/mtaliaferro/Documents/Denver/Teaching/MOLB7950/AltSplicing/dummySTAR/Exercises_1.fastq.gz   /Users/mtaliaferro/Documents/Denver/Teaching/MOLB7950/AltSplicing/dummySTAR/Exercises_2.fastq.gz        ~RE-DEFINED
+readFilesCommand              gunzip   -c        ~RE-DEFINED
+outFileNamePrefix             /Users/mtaliaferro/Documents/Denver/Teaching/MOLB7950/AltSplicing/dummySTAR/MOLB7950/Exercises     ~RE-DEFINED
+outSAMtype                    BAM   SortedByCoordinate        ~RE-DEFINED
+##### Finished reading parameters from all sources
+
+##### Final user re-defined parameters-----------------:
+runMode                           alignReads
+genomeDir                         /Users/mtaliaferro/Documents/Denver/Teaching/MOLB7950/AltSplicing/dummySTAR/dummySTARindex/
+readFilesIn                       /Users/mtaliaferro/Documents/Denver/Teaching/MOLB7950/AltSplicing/dummySTAR/Exercises_1.fastq.gz   /Users/mtaliaferro/Documents/Denver/Teaching/MOLB7950/AltSplicing/dummySTAR/Exercises_2.fastq.gz   
+readFilesCommand                  gunzip   -c   
+outFileNamePrefix                 /Users/mtaliaferro/Documents/Denver/Teaching/MOLB7950/AltSplicing/dummySTAR/MOLB7950/Exercises
+outSAMtype                        BAM   SortedByCoordinate   
+outFilterMultimapNmax             1
+
+-------------------------------
+##### Final effective command line:
+/Users/mtaliaferro/miniconda2/envs/three/bin/STAR   --runMode alignReads   --genomeDir /Users/mtaliaferro/Documents/Denver/Teaching/MOLB7950/AltSplicing/dummySTAR/dummySTARindex/   --readFilesIn /Users/mtaliaferro/Documents/Denver/Teaching/MOLB7950/AltSplicing/dummySTAR/Exercises_1.fastq.gz   /Users/mtaliaferro/Documents/Denver/Teaching/MOLB7950/AltSplicing/dummySTAR/Exercises_2.fastq.gz      --readFilesCommand gunzip   -c      --outFileNamePrefix /Users/mtaliaferro/Documents/Denver/Teaching/MOLB7950/AltSplicing/dummySTAR/MOLB7950/Exercises   --outSAMtype BAM   SortedByCoordinate      --outFilterMultimapNmax 1
+----------------------------------------
+
+Number of fastq files for each mate = 1
+
+   Input read files for mate 1 :
+-rw-r--r--  1 mtaliaferro  staff  7081152 Jun 28 21:25 /Users/mtaliaferro/Documents/Denver/Teaching/MOLB7950/AltSplicing/dummySTAR/Exercises_1.fastq.gz
+
+   readsCommandsFile:
+exec > "/Users/mtaliaferro/Documents/Denver/Teaching/MOLB7950/AltSplicing/dummySTAR/MOLB7950/Exercises_STARtmp/tmp.fifo.read1"
+echo FILE 0
+gunzip   -c      "/Users/mtaliaferro/Documents/Denver/Teaching/MOLB7950/AltSplicing/dummySTAR/Exercises_1.fastq.gz"
+
+
+   Input read files for mate 2 :
+-rw-r--r--  1 mtaliaferro  staff  7183340 Jun 28 21:25 /Users/mtaliaferro/Documents/Denver/Teaching/MOLB7950/AltSplicing/dummySTAR/Exercises_2.fastq.gz
+
+   readsCommandsFile:
+exec > "/Users/mtaliaferro/Documents/Denver/Teaching/MOLB7950/AltSplicing/dummySTAR/MOLB7950/Exercises_STARtmp/tmp.fifo.read2"
+echo FILE 0
+gunzip   -c      "/Users/mtaliaferro/Documents/Denver/Teaching/MOLB7950/AltSplicing/dummySTAR/Exercises_2.fastq.gz"
+
+WARNING: --limitBAMsortRAM=0, will use genome size as RAM limit for BAM sorting
+Finished loading and checking parameters
+Reading genome generation parameters:
+### /Users/mtaliaferro/miniconda2/envs/three/bin/STAR   --runMode genomeGenerate   --genomeDir /Users/mtaliaferro/Documents/Denver/Teaching/MOLB7950/AltSplicing/dummySTAR/dummySTARindex   --genomeFastaFiles /Users/mtaliaferro/Documents/Denver/Teaching/MOLB7950/AltSplicing/dummySTAR/chr19.fasta      --genomeSAindexNbases 11   --sjdbGTFfile /Users/mtaliaferro/Documents/Denver/Teaching/MOLB7950/AltSplicing/dummySTAR/MOLB7950.gff3   --sjdbGTFtagExonParentTranscript Parent   --sjdbOverhang 100
+### GstrandBit=32
+versionGenome                 2.7.4a     ~RE-DEFINED
+genomeType                    Full     ~RE-DEFINED
+genomeFastaFiles              /Users/mtaliaferro/Documents/Denver/Teaching/MOLB7950/AltSplicing/dummySTAR/chr19.fasta        ~RE-DEFINED
+genomeSAindexNbases           11     ~RE-DEFINED
+genomeChrBinNbits             18     ~RE-DEFINED
+genomeSAsparseD               1     ~RE-DEFINED
+genomeTransformType           None     ~RE-DEFINED
+genomeTransformVCF            -     ~RE-DEFINED
+sjdbOverhang                  100     ~RE-DEFINED
+sjdbFileChrStartEnd           -        ~RE-DEFINED
+sjdbGTFfile                   /Users/mtaliaferro/Documents/Denver/Teaching/MOLB7950/AltSplicing/dummySTAR/MOLB7950.gff3     ~RE-DEFINED
+sjdbGTFchrPrefix              -     ~RE-DEFINED
+sjdbGTFfeatureExon            exon     ~RE-DEFINED
+sjdbGTFtagExonParentTranscriptParent     ~RE-DEFINED
+sjdbGTFtagExonParentGene      gene_id     ~RE-DEFINED
+sjdbInsertSave                Basic     ~RE-DEFINED
+genomeFileSizes               63222091   493482465        ~RE-DEFINED
+Genome version is compatible with current STAR
+Number of real (reference) chromosomes= 1
+1	chr19	61431566	0
+--sjdbOverhang = 100 taken from the generated genome
+Started loading the genome: Sun Jun 28 21:29:06 2020
+
+Genome: size given as a parameter = 63222091
+SA: size given as a parameter = 493482465
+SAindex: size given as a parameter = 1
+Read from SAindex: pGe.gSAindexNbases=11  nSAi=5592404
+nGenome=63222091;  nSAbyte=493482465
+GstrandBit=32   SA number of indices=119632112
+Shared memory is not used for genomes. Allocated a private copy of the genome.
+Genome file size: 63222091 bytes; state: good=1 eof=0 fail=0 bad=0
+Loading Genome ... done! state: good=1 eof=0 fail=0 bad=0; loaded 63222091 bytes
+SA file size: 493482465 bytes; state: good=1 eof=0 fail=0 bad=0
+Loading SA ... done! state: good=1 eof=0 fail=0 bad=0; loaded 493482465 bytes
+Loading SAindex ... done: 24466875 bytes
+Finished loading the genome: Sun Jun 28 21:29:07 2020
+
+Sum of all Genome bytes: 103321046
+Sum of all SA bytes: 51048205801
+Sum of all SAi bytes: 2389736133
+Processing splice junctions database sjdbN=8051,   pGe.sjdbOverhang=100 
+alignIntronMax=alignMatesGapMax=0, the max intron size will be approximately determined by (2^winBinNbits)*winAnchorDistNbins=589824
+Starting to map file # 0
+mate 1:   /Users/mtaliaferro/Documents/Denver/Teaching/MOLB7950/AltSplicing/dummySTAR/Exercises_1.fastq.gz
+mate 2:   /Users/mtaliaferro/Documents/Denver/Teaching/MOLB7950/AltSplicing/dummySTAR/Exercises_2.fastq.gz
+Thread #0 end of input stream, nextChar=-1
+BAM sorting: 181118 mapped reads
+BAM sorting bins genomic start loci:
+1	0	4008493
+2	0	4233309
+3	0	4918112
+4	0	5286223
+5	0	5695178
+6	0	5898207
+7	0	6128145
+8	0	6491609
+9	0	7028681
+10	0	7423832
+11	0	8709396
+12	0	8825339
+13	0	8942226
+14	0	9003285
+15	0	10054227
+16	0	10195657
+17	0	10605709
+18	0	10627497
+19	0	12448730
+20	0	15907024
+21	0	17120909
+22	0	18960780
+23	0	23619882
+24	0	29374406
+25	0	30547192
+26	0	32674022
+27	0	36873918
+28	0	38789277
+29	0	41526374
+30	0	41963925
+31	0	44230278
+32	0	44295148
+33	0	44303135
+34	0	44303788
+35	0	44304716
+36	0	44305515
+37	0	44306176
+38	0	44395728
+39	0	44553709
+40	0	45778612
+41	0	46377087
+42	0	47024282
+43	0	47264459
+44	0	52987790
+45	0	53648713
+46	0	56813212
+47	0	58798005
+48	0	60762152
+Completed: thread #0
+Jun 28 21:29:34 ..... started sorting BAM
+Max memory needed for sorting = 1426864
+ALL DONE!

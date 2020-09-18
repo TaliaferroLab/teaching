@@ -1,0 +1,1228 @@
+<!DOCTYPE html>
+<html lang="" xml:lang="">
+  <head>
+    <title>RNAseq: DE</title>
+    <meta charset="utf-8" />
+    <meta name="author" content="Matthew Taliaferro" />
+    <link href="libs/font-awesome/css/all.css" rel="stylesheet" />
+    <link href="libs/font-awesome/css/v4-shims.css" rel="stylesheet" />
+    <link rel="stylesheet" href="xaringan-themer.css" type="text/css" />
+    <link rel="stylesheet" href="slides.css" type="text/css" />
+  </head>
+  <body>
+    <textarea id="source">
+class: center, middle, inverse, title-slide
+
+# RNAseq: DE
+### Matthew Taliaferro
+
+---
+
+
+
+
+
+layout: true
+
+&lt;div class="my-footer"&gt;
+  &lt;span&gt;
+  Matthew Taliaferro | RNAseq: Differential Expression | &lt;a href="https://molb7950.netlify.app/"&gt;MOLB 7950 website&lt;/a&gt;
+  &lt;/span&gt;
+&lt;/div&gt; 
+
+---
+
+# Contact Info 
+
+### Greetings experimentalist humans 👋
+
+&lt;i class="fa fa-envelope"&gt;&lt;/i&gt; &amp;nbsp; [matthew.taliaferro@cuanschutz.edu](mailto:matthew.taliaferro@cuanschutz.edu) &lt;br&gt;
+
+---
+class: highlight-last-item
+
+# Learning Objectives
+
+###By the end of the class, you should be able to:
+
+- Identify genes that are differentially expressed between two samples using `DESeq2`
+
+--
+- Explore differential expression results qualitatively
+
+--
+- Plot the expression of single genes across conditions
+
+--
+- Investigate changes in expression for groups of genes based on their membership within gene ontology categories
+
+
+---
+
+# Rigor &amp; Reproducibility
+
+.pull-left[As with all computational **experiments** (yes, they are experiments, don't let your pipette-toting friends tell you otherwise), keeping track of what you did is key. In the old days, I kept a written notebook of commands that I ran.  Sounds silly, but there were many times that I went back to that notebook to see exactly what the parameters were for a given run using a piece of software.
+
+Today, there are better options. You are using one of the better ones right now.  Notebooks, including RMarkdown (mainly for R) and Jupyter (mainly for Python), are a great way to keep track of what you did as well as give justification or explanation for your analyses using plain 'ol English.
+
+
+Trust me, one day you will be glad you used them. The Methods section of your paper is never fun to write without them.]
+
+.pull-right[.center[
+&lt;img src="img/Rmarkdown.jpg" width="35%" /&gt;
+]
+
+.center[
+&lt;img src="img/jupyter.png" width="35%" /&gt;
+]]
+
+
+---
+class: highlight-last-item
+
+# Problem Set and Grading Rubric
+
+Today's problem set is composed of 3 problems. The first one is worth 30% of the total points while the next two are worth 35% each.  For all of these problems, you will be presented with an RNAseq dataset. Transcript quantification will have already been performed using `salmon`, and differential expression analysis will have been performed with `DESeq2`. 
+
+--
+- In the first, you must take those results and plot the expression of a single gene across two different conditions.
+
+--
+- In the second, you will ask for differences in expression in a *group* of genes across two conditions.
+
+--
+- In the third, you will plot differences in expression for a group of genes to identify those that are differentially expressed.
+
+
+---
+
+# Further reading
+
+If you are interested, here is a little more information about today's topic that you can read later:
+
+.pull-left[ 
+- A [vignette](http://bioconductor.org/packages/devel/bioc/vignettes/DESeq2/inst/doc/DESeq2.html) describing the use of `DESeq2`
+- The [paper](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-014-0550-8) describing `DESeq2`'s method
+]
+
+---
+
+# Overview
+
+In this class, we will examine RNAseq data collected over a timecourse of differentiation from mouse embryonic stem cells to cortical glutamatergic neurons [(Hubbard et al, F1000 Research (2013))](10.12688/f1000research.2-35.v1). In this publication, the authors differentiated mESCs to neurons using a series of *in vitro* culture steps over a period of 37 days. During this timecourse, samples were extracted at selected intervals for transcriptome analysis. Importantly, for each timepoint, either 3 or 4 samples were taken for RNA extraction, library preparation and sequencing.  This allows us to efficiently use the statistical frameworks provided by the [DESeq2](http://bioconductor.org/packages/devel/bioc/vignettes/DESeq2/inst/doc/DESeq2.html) package to identify genes whose RNA expression changes across the timecourse.
+
+
+&lt;img src="img/RNAseqpaper.png" width="120%" /&gt;
+
+
+---
+
+# Overview
+
+.pull-left[Cells were grown in generic differentiation-promoting media (LIF-) for 8 days until aggreates were dissociated and replated in neuronal differentiation media. This day of replating was designated as *in vitro* day 0 (DIV0).  The timepoints taken before this replating therefore happened at "negative" times (DIV-8 and DIV-4). Because naming files with dashes or minus signs can cause problems, these samples are referred to as DIVminus8 and DIVminus4. Following the replating, samples were taken at days 1, 7, 16, 21, and 28 (DIV1, DIV7, DIV16, DIV21, and DIV28).
+
+Today we will focus on identifying .hotpink[differentially expressed genes] between two of these timepoints.
+] 
+
+.pull-right[
+&lt;img src="img/flowchart.png" width="100%" /&gt;
+]
+
+---
+
+#Overview
+
+.pull-left[Cells were grown in generic differentiation-promoting media (LIF-) for 8 days until aggreates were dissociated and replated in neuronal differentiation media. This day of replating was designated as *in vitro* day 0 (DIV0).  The timepoints taken before this replating therefore happened at "negative" times (DIV-8 and DIV-4). Because naming files with dashes or minus signs can cause problems, these samples are referred to as DIVminus8 and DIVminus4. Following the replating, samples were taken at days 1, 7, 16, 21, and 28 (DIV1, DIV7, DIV16, DIV21, and DIV28).
+
+Today we will focus on identifying .hotpink[differentially expressed genes] between two of these timepoints.
+] 
+
+.pull-right[
+&lt;img src="img/flowchart_RNASeqDE.png" width="100%" /&gt;
+]
+
+---
+
+# Overview
+
+Last time we took RNAseq data from an *in vitro* differentiation timecouse from mouse ESCs to glutaminergic neurons [(Hubbard et al, F1000 Research (2013))](10.12688/f1000research.2-35.v1). We took in transcript-level quantifications produced by `salmon` and collapsed them to gene-level quantifications using `tximport`. We then inspected the quality of the data by relating distances between samples using two methods: .hotpink[hierarchical clustering] and .hotpink[principal components analysis]. 
+
+We found that the data was of high quality, as evidenced by the fact that replicates from a given timepoint were highly similar to other replicates for the same timepoint, and the distances between samples made sense with what we know about how the experiment was conducted.
+
+--
+
+Today, we are going to pretend that this isn't a timecourse.  We are going to imagine that we have only two conditions: the .blue[first timepoint (DIVminus8)] and the .orange[last timepoint (DIV28)]. We will use `DESeq2` to identify genes that are differentially expressed between these two timepoints.  
+
+We will then plot changes in expression for both individual genes and groups of genes that we already know going in might be interesting to look at. Finally, we will look at some features of transcripts and genes that are differentially expressed between these two timepoints.  We are not doing this two-timepoint comparsion because it is necessarily a good thing to do with timepoint data. Instead, we are doing this because often in an RNAseq experiment, you only have two conditions to compare.
+
+---
+
+# Identifying differentially expressed genes with DESeq2
+
+The first thing we need to do is read in the data again and move from transcript-level expression values to gene-level expression values with `tximport`. Let's use `biomaRt` to get a table that relates gene and transcript IDs.
+
+.code[
+
+```r
+mart &lt;- biomaRt::useMart("ENSEMBL_MART_ENSEMBL", dataset = "mmusculus_gene_ensembl", host='www.ensembl.org')
+t2g &lt;- biomaRt::getBM(attributes = c('ensembl_transcript_id', 'ensembl_gene_id', 'external_gene_name'), mart = mart)
+```
+]
+
+---
+
+# Quantify gene expression with `tximport`
+
+Now we can read in the transcript-level data and collapse to gene-level data with `tximport`
+
+.code[
+
+```r
+#The directory where all of the sample-specific salmon subdirectories live
+base_dir &lt;- 'data/salmonouts/'
+
+#The names of all the sample-specific salmon subdirectories
+sample_ids &lt;- c('DIV0.Rep1', 'DIV0.Rep2', 'DIV0.Rep3',
+                'DIV7.Rep1', 'DIV7.Rep2', 'DIV7.Rep3', 'DIV7.Rep4')
+
+#So what we want to do now is create paths to each quant.sf file that is in each sample_id.
+#This can be done by combining the base_dir, each sample_id directory, and 'quant.sf'
+#For example, the path to the first file will be 
+#data/salmonouts/DIVminus8.Rep1/quant.sf
+salm_dirs &lt;- sapply(sample_ids, function(id) file.path(base_dir, id, 'quant.sf'))
+
+#Run tximport
+txi &lt;- tximport(salm_dirs, type = 'salmon', tx2gene = t2g, dropInfReps = TRUE, countsFromAbundance = 'lengthScaledTPM')
+```
+]
+
+---
+
+# Quantify gene expression with `tximport`
+
+Let's take a look at what `tximport` did just to make sure everything is 💯
+
+.code[
+
+```r
+kable(txi$abundance[1:20,])
+```
+]
+
+--
+
+.scroll-box-16[
+.plot[
+
+|                   |  DIV0.Rep1|  DIV0.Rep2|  DIV0.Rep3|  DIV7.Rep1|  DIV7.Rep2|  DIV7.Rep3|  DIV7.Rep4|
+|:------------------|----------:|----------:|----------:|----------:|----------:|----------:|----------:|
+|ENSMUSG00000000001 | 148.004511| 145.539529| 164.680183|  76.088940|  76.669016|  79.505738|  76.038479|
+|ENSMUSG00000000003 |   0.000000|   0.000000|   0.000000|   0.000000|   0.000000|   0.000000|   0.000000|
+|ENSMUSG00000000028 |  34.180035|  36.215924|  39.486489|   6.582942|   6.752942|   5.547107|   5.510259|
+|ENSMUSG00000000031 |   7.213808|   6.431925|  13.253322| 151.244212| 137.227925| 169.762968| 150.599359|
+|ENSMUSG00000000037 |   5.877237|   5.001733|   7.579149|   2.750903|   1.827190|   2.446732|   2.894751|
+|ENSMUSG00000000049 |   0.000000|   0.046208|   0.000000|   0.188254|   0.050654|   0.277837|   0.189814|
+|ENSMUSG00000000056 |  31.553583|  28.610456|  19.741875|  41.828967|  46.812515|  44.172289|  46.834670|
+|ENSMUSG00000000058 |   0.420304|   0.507728|   0.602757|   0.194399|   0.102993|   0.063154|   0.130644|
+|ENSMUSG00000000078 |  52.604855|  64.802703|  76.892914|  52.939918|  52.709453|  54.334181|  50.804497|
+|ENSMUSG00000000085 |  60.617248|  59.182914|  61.623794|  52.494911|  43.715591|  45.720249|  46.351620|
+|ENSMUSG00000000088 | 372.546920| 364.764405| 381.963748| 703.366663| 749.229000| 711.055019| 744.360315|
+|ENSMUSG00000000093 |  18.748818|  26.367729|  28.740489|   1.960168|   1.812696|   2.626110|   2.401155|
+|ENSMUSG00000000094 |   0.114764|   0.197628|   0.237980|   0.253309|   0.359092|   0.191826|   0.280499|
+|ENSMUSG00000000103 |   0.000000|   0.000000|   0.019350|   0.000000|   0.000000|   0.022570|   0.020990|
+|ENSMUSG00000000120 |  18.187330|  17.621063|  16.764680|   7.879629|   8.472306|   7.826161|   8.344422|
+|ENSMUSG00000000125 |   9.426741|   9.885487|   5.404755|   2.613648|   2.668347|   2.770951|   2.336912|
+|ENSMUSG00000000126 |   1.215801|   0.746274|   0.814387|   1.920124|   1.992736|   2.643161|   2.442442|
+|ENSMUSG00000000127 |  13.113348|  14.260035|  14.074681|  16.306853|  15.553249|  15.896542|  15.505971|
+|ENSMUSG00000000131 |  55.485697|  54.448611|  62.549063|  64.772660|  60.737488|  64.559072|  65.908557|
+|ENSMUSG00000000134 |  33.480962|  36.683455|  38.983454|  26.254515|  25.201055|  25.298568|  24.448624|
+]
+]
+
+---
+
+# Identifying differentially expressed genes with DESeq2
+
+OK we are going to need to give `DESeq2` information about the samples like which sample belongs to which timepoint.
+
+--
+
+
+```r
+samples &lt;- data.frame(row.names = c('DIV0.Rep1', 'DIV0.Rep2', 'DIV0.Rep3',
+                                    'DIV7.Rep1', 'DIV7.Rep2', 'DIV7.Rep3', 'DIV7.Rep4'),
+                      timepoint = c(rep('DIV0', 3), rep('DIV7', 4)))
+
+samples
+```
+
+--
+
+.plot[
+
+```
+#&gt;           timepoint
+#&gt; DIV0.Rep1      DIV0
+#&gt; DIV0.Rep2      DIV0
+#&gt; DIV0.Rep3      DIV0
+#&gt; DIV7.Rep1      DIV7
+#&gt; DIV7.Rep2      DIV7
+#&gt; DIV7.Rep3      DIV7
+#&gt; DIV7.Rep4      DIV7
+```
+]
+
+---
+
+# Design formulae
+
+There are essentially two steps to using `DESeq2`. The first involves creating a `DESeqDataSet` from your data. Luckily, if you have a `tximport` object, which we do in the form of `txi`, then this becomes easy.
+
+
+```r
+ddsTxi &lt;- DESeqDataSetFromTximport(txi, colData = samples, design = ~ timepoint)
+```
+
+--
+
+You can see that `DESeqDataSetFromTximport` wants three things. The **first** is our `tximport` object. The **second** is the dataframe we made that relates samples and conditions (or in this case timepoints). The **last** is something called a .hotpink[*design formula*]. A design formula contains all of the variables that will go into `DESeq2`'s model. The formula starts with a tilde and then has variables separated by a plus sign. It is common practice, and in fact basically required with `DESeq2`, to put the variable of interest last.  In our case, that's trivial because we only have one: .orange[timepoint]. So our design formula is very simple:
+
+
+```r
+design = ~ timepoint
+```
+    
+---
+
+# Design formulae
+
+Your design formula should ideally include **all of the sources of variation in your data**.  For example, let's say that here we thought there was a batch effect with the .blue[replicates].  Maybe all of the Rep1 samples were prepped and sequenced on a different day than the Rep2 samples and so on. We could potentially account for this in `DESeq2`'s model with the following formula:
+
+
+```r
+design = ~ replicate + timepoint
+```
+    
+--
+
+Here, .orange[timepoint] is still the variable of interest, but we are controlling for differences that arise due to differences in .blue[replicates]. Of course, this formula would require us to go back and make a new `samples` table that included 'replicate' as a factor.
+
+---
+
+# Making a DESeq dataset
+
+OK so let's go ahead and make our dataset with `DESeq2`.
+
+.code[
+
+```r
+ddsTxi &lt;- DESeqDataSetFromTximport(txi, colData = samples, design = ~ timepoint)
+
+ddsTxi
+```
+]
+
+--
+
+.plot[
+
+```
+#&gt; class: DESeqDataSet 
+#&gt; dim: 52346 7 
+#&gt; metadata(1): version
+#&gt; assays(1): counts
+#&gt; rownames(52346): ENSMUSG00000000001 ENSMUSG00000000003 ...
+#&gt;   ENSMUSG00000118655 ENSMUSG00000118659
+#&gt; rowData names(0):
+#&gt; colnames(7): DIV0.Rep1 DIV0.Rep2 ... DIV7.Rep3 DIV7.Rep4
+#&gt; colData names(1): timepoint
+```
+]
+
+--
+
+We can see here that `DESeq2` is taking the .hotpink[.big[counts]] produced by `tximport` for gene quantifications. There are 52346 .orange[genes] (rows) here and 8 .blue[samples] (columns). We learned earlier that `DESeq2` uses .hotpink[counts], not TPM, not FPKM, not anything else, when identifying differentially expressed genes. This is very important for `DESeq2`'s statistical model. We won't say much more about this here or get into the guts of `DESeq2`, instead focusing on running it. Although we have mainly looked at their TPM outputs thus far, `salmon` also quantifies .hotpink[counts] for every transcript, and `tximport` will collate them to gene-level .hotpink[count] measurements. That's what `DESeqDataSetFromTximport` is using here.
+
+---
+
+# Running `DESeq2`
+
+Now using this ddsTxi object, we can run `DESeq2`. Let's do it.
+
+.code[
+
+```r
+dds &lt;- DESeq(ddsTxi)
+```
+]
+
+--
+
+There are many useful things in this `dds` object.  I encourage you to take a look at the [vignette](http://bioconductor.org/packages/devel/bioc/vignettes/DESeq2/inst/doc/DESeq2.html) for `DESeq2` for a full explanation about what is in there, as well as info on many more tests and analyses that can be done with `DESeq2`.
+
+---
+
+# Accessing results
+
+The results can be accessed using the aptly named `results()` function.
+
+We are going to include the `contrast` argument here. `DESeq2` reports changes in RNA abundance between two samples as a log2FoldChange. That's great, but it's often not clear exactly what the .hotpink[numerator] and .hotpink[denominator] of that fold change ratio is. In this case, it could be either DIV28/DIVminus8 or DIVminus8/DIV28.
+
+--
+
+In actuality, it's of course not random. The alphabetically first condition will be the .hotpink[numerator]. Still, I find it less confusing to explicitly specify what the .hotpink[numerator] and .hotpink[denominator] of this ratio are using the `contrast` argument.
+
+--
+
+.code[
+
+```r
+#For contrast, we give three strings: the factor we are interested in, 
+#the numerator, and the denominator
+#It makes the most sense (to me at least) to have DIV28 be the numerator
+results(dds, contrast = c('timepoint', 'DIV7', 'DIV0'))
+```
+]
+
+---
+
+# Accessing results
+
+Another useful application of the `contrast` argument can be seen with more complicated design formulae.  Remember our design formula that accounted for potential differences due to replicate batch effects:
+
+--
+
+.code[
+
+```r
+design = ~ replicate + timepoint
+```
+]
+
+--
+
+As we said before, with this formula, `DESeq2` will account for differences between .blue[replicates] here to find differences between .orange[timepoints]. However, what if we wanted to look at differences between .blue[replicate] batches?  By supplying '.blue[replicate]' to `contrast` instead of '.orange[timepoint]', we could extract difference between these batches.
+
+---
+
+# Accessing results
+
+OK, back to what we were doing.  Let's take a look at what `results()` will give us.
+
+--
+
+.code[
+
+```r
+#For contrast, we give three strings: the factor we are interested in, 
+#the numerator, and the denominator
+#It makes the most sense (to me at least) to have DIV28 be the numerator
+results(dds, contrast = c('timepoint', 'DIV7', 'DIV0'))
+```
+]
+
+--
+
+.plot[
+
+```
+#&gt; log2 fold change (MLE): timepoint DIV7 vs DIV0 
+#&gt; Wald test p-value: timepoint DIV7 vs DIV0 
+#&gt; DataFrame with 52346 rows and 6 columns
+#&gt;                            baseMean     log2FoldChange              lfcSE
+#&gt;                           &lt;numeric&gt;          &lt;numeric&gt;          &lt;numeric&gt;
+#&gt; ENSMUSG00000000001 5579.77754585436 -0.953512002710987 0.0527959783401513
+#&gt; ENSMUSG00000000003                0                 NA                 NA
+#&gt; ENSMUSG00000000028 718.696881667605  -2.55365044138704  0.107061390183316
+#&gt; ENSMUSG00000000031 3624.57797113539   4.12075207975084  0.289850192996735
+#&gt; ENSMUSG00000000037 242.620316811254  -1.27535503985687  0.199245035001358
+#&gt; ...                             ...                ...                ...
+#&gt; ENSMUSG00000118642 327.352114985249  -3.25323665588743   0.23412080090127
+#&gt; ENSMUSG00000118643 0.41966839171392  -1.01604388048036   2.91302113145088
+#&gt; ENSMUSG00000118645                0                 NA                 NA
+#&gt; ENSMUSG00000118655 0.53983052909861    -0.203467630204   3.47258609246081
+#&gt; ENSMUSG00000118659                0                 NA                 NA
+#&gt;                                   stat                pvalue
+#&gt;                              &lt;numeric&gt;             &lt;numeric&gt;
+#&gt; ENSMUSG00000000001   -18.0603150597522  6.54479924381713e-73
+#&gt; ENSMUSG00000000003                  NA                    NA
+#&gt; ENSMUSG00000000028    -23.852207009591 9.60625035722693e-126
+#&gt; ENSMUSG00000000031    14.2168340036167  7.20390891834315e-46
+#&gt; ENSMUSG00000000037   -6.40093761858697  1.54425661878405e-10
+#&gt; ...                                ...                   ...
+#&gt; ENSMUSG00000118642   -13.8955472703143   6.7406320059608e-44
+#&gt; ENSMUSG00000118643  -0.348793858551345      0.72724407438924
+#&gt; ENSMUSG00000118645                  NA                    NA
+#&gt; ENSMUSG00000118655 -0.0585925373155588     0.953276654831871
+#&gt; ENSMUSG00000118659                  NA                    NA
+#&gt;                                     padj
+#&gt;                                &lt;numeric&gt;
+#&gt; ENSMUSG00000000001  8.45277461659094e-72
+#&gt; ENSMUSG00000000003                    NA
+#&gt; ENSMUSG00000000028 2.24778563098477e-124
+#&gt; ENSMUSG00000000031  6.26890306369821e-45
+#&gt; ENSMUSG00000000037   6.1371069162833e-10
+#&gt; ...                                  ...
+#&gt; ENSMUSG00000118642  5.70293586948921e-43
+#&gt; ENSMUSG00000118643     0.907559578565775
+#&gt; ENSMUSG00000118645                    NA
+#&gt; ENSMUSG00000118655     0.976598345033357
+#&gt; ENSMUSG00000118659                    NA
+```
+]
+
+---
+
+# Accessing results
+We can see here that this is a dataframe where the rows are genes and the columns are interesting data.
+The columns we are most interested in are .hotpink[log2FoldChange] and .hotpink[padj].
+.hotpink[log2FoldChange] is self-explanatory. .hotpink[padj] is the pvalue for a test asking if the expression of this gene is different between the two conditions. This pvalue has been corrected for multiple hypothesis testing using the Benjamini-Hochberg method.
+
+Let's do a little work on this dataframe to make it slightly cleaner and more informative.
+
+.pull-left[
+.scroll-box-18[
+.code[
+
+```r
+differentiation.results &lt;- results(dds, contrast = c('timepoint', 'DIV7', 'DIV0')) %&gt;%
+  #Change this into a dataframe
+  as.data.frame(.) %&gt;%
+  #Move ensembl gene IDs into their own column
+  rownames_to_column(., var = 'ensembl_gene_id') %&gt;%
+  #Get rid of columns that are so useful to us right now
+  dplyr::select(., -c(baseMean, lfcSE, stat, pvalue)) %&gt;%
+  #Merge this with a table relating ensembl_gene_id with gene short names
+  inner_join(unique(dplyr::select(t2g, -ensembl_transcript_id)), ., by = 'ensembl_gene_id') %&gt;%
+  #Rename external_gene_name column
+  dplyr::rename(., Gene = external_gene_name)
+
+kable(differentiation.results[1:20,])
+```
+]
+]
+]
+
+--
+
+.pull-right[
+.scroll-box-16[
+.plot[
+
+|ensembl_gene_id    |Gene    | log2FoldChange|      padj|
+|:------------------|:-------|--------------:|---------:|
+|ENSMUSG00000064372 |mt-Tp   |      2.9854645| 0.0000000|
+|ENSMUSG00000064371 |mt-Tt   |     -2.9647630| 0.0056641|
+|ENSMUSG00000064370 |mt-Cytb |      0.2521125| 0.0025608|
+|ENSMUSG00000064369 |mt-Te   |     -0.0730461| 0.9203204|
+|ENSMUSG00000064368 |mt-Nd6  |      0.2969130| 0.0011097|
+|ENSMUSG00000064367 |mt-Nd5  |      0.2092389| 0.0163530|
+|ENSMUSG00000064366 |mt-Tl2  |     -2.0268710| 0.0142720|
+|ENSMUSG00000064365 |mt-Ts2  |     -3.3307513| 0.0003872|
+|ENSMUSG00000064364 |mt-Th   |     -4.0737942| 0.0043367|
+|ENSMUSG00000064363 |mt-Nd4  |      0.4103481| 0.0000065|
+|ENSMUSG00000065947 |mt-Nd4l |      0.0688742| 0.5926029|
+|ENSMUSG00000064361 |mt-Tr   |      1.5164924| 0.8959542|
+|ENSMUSG00000064360 |mt-Nd3  |      0.6648693| 0.0001864|
+|ENSMUSG00000064359 |mt-Tg   |      0.0498874| 0.9827623|
+|ENSMUSG00000064358 |mt-Co3  |      0.4623485| 0.0000000|
+|ENSMUSG00000064357 |mt-Atp6 |     -0.0685590| 0.7023012|
+|ENSMUSG00000064356 |mt-Atp8 |      0.2468412| 0.0025910|
+|ENSMUSG00000064355 |mt-Tk   |     -2.3262141| 0.4106163|
+|ENSMUSG00000064354 |mt-Co2  |      0.2276855| 0.0077794|
+|ENSMUSG00000064353 |mt-Td   |     -2.4247954| 0.7524850|
+]
+]
+]
+
+---
+
+# Identifying differentially expressed genes
+
+OK now we have a table of gene expression results. How many genes are significantly .orange[up]/.blue[down] regulated between these two timepoints?
+We will use 0.01 as an FDR (p.adj) cutoff.
+
+.code[
+
+```r
+#number of upregulated genes
+nrow(filter(differentiation.results, padj &lt; 0.01 &amp; log2FoldChange &gt; 0))
+#number of downregulated genes
+nrow(filter(differentiation.results, padj &lt; 0.01 &amp; log2FoldChange &lt; 0))
+```
+]
+
+--
+
+.plot[
+
+```
+#&gt; [1] 6671
+```
+
+```
+#&gt; [1] 6813
+```
+]
+
+---
+
+# Identifying differentially expressed genes
+Let's make a volcano plot of these results.
+
+.pull-left[
+.scroll-box-18[
+.code[
+
+```r
+#We are going to add an extra column to differentiation.results t
+#hat tells us whether or not a gene 
+#meets the FDR cutoff
+differentiation.results.sig &lt;- mutate(differentiation.results, 
+                                      sig = ifelse(padj &lt; 0.01, 'yes', 'no')) %&gt;%
+  #if a gene did not meet expression cutoffs that DESeq2 
+  #automatically does, it gets a pvalue of NA
+  na.omit(.)
+
+ggplot(differentiation.results.sig, 
+       aes(x = log2FoldChange, y = -log10(padj), color = sig)) + 
+  geom_point(alpha = 0.2) + 
+  xlab('DIV7 expression / DIV0 expression, log2') + 
+  ylab('-log10(FDR)') + theme_classic(16) +
+  scale_color_manual(values = c('gray', 'red'), 
+                     labels = c('NS', 'FDR &lt; 0.01'), name = '') +
+  theme(legend.position = c(0.8, 0.5)) + 
+  guides(color = guide_legend(override.aes = list(alpha = 1)))
+```
+]
+]
+]
+
+--
+
+.pull-right[
+.plot[
+&lt;img src="RNAseq_DE_slides_files/figure-html/DEvolcano-out-1.png" width="504" /&gt;
+]
+]
+
+---
+
+#Adding a log2FC threshold
+
+OK that's a lot of significant genes. What if, in addition to an FDR cutoff, we applied a .hotpink[log2FoldChange cutoff]?
+We can do this by asking for p values that incorporate the probability that the log2FoldChange was greater than a threshold.
+This will of course be more conservative, but will probably give you a more confident set of genes.
+
+.code[
+
+```r
+#Is the expression of the gene at least 3-fold different?
+differentiation.results.lfc &lt;- results(dds, contrast = c('timepoint', 'DIV7', 'DIV0'), 
+                                       lfcThreshold = log(3, 2)) %&gt;%
+  #Change this into a dataframe
+  as.data.frame(.) %&gt;%
+  #Move ensembl gene IDs into their own column
+  rownames_to_column(., var = 'ensembl_gene_id') %&gt;%
+  #Get rid of columns that are so useful to us right now
+  dplyr::select(., -c(baseMean, lfcSE, stat, pvalue)) %&gt;%
+  #Merge this with a table relating ensembl_gene_id with gene short names
+  inner_join(unique(dplyr::select(t2g, -ensembl_transcript_id)), ., by = 'ensembl_gene_id') %&gt;%
+  #Rename external_gene_name column
+  dplyr::rename(., Gene = external_gene_name) %&gt;%
+  mutate(., sig = ifelse(padj &lt; 0.01, 'yes', 'no')) %&gt;%
+  na.omit(.)
+```
+]
+
+---
+
+#Adding a log2FC threshold
+
+As before, we can see the number of genes that are signficiantly .orange[up]/.blue[down] regulated between these two timepoints. This time, p values represent genes that we are confident are at least 3-fold .orange[up] or .blue[down] regulated.
+
+.code[
+
+```r
+#number of upregulated genes
+nrow(filter(differentiation.results.lfc, padj &lt; 0.01 &amp; log2FoldChange &gt; 0))
+#number of downregulated genes
+nrow(filter(differentiation.results.lfc, padj &lt; 0.01 &amp; log2FoldChange &lt; 0))
+```
+]
+
+--
+
+.plot[
+
+```
+#&gt; [1] 1834
+```
+
+```
+#&gt; [1] 1295
+```
+]
+
+---
+
+#Adding a log2FC threshold
+
+.pull-left[
+.scroll-box-14[
+.code[
+
+```r
+ggplot(differentiation.results.lfc, aes(x = log2FoldChange, y = -log10(padj), color = sig)) + 
+  geom_point(alpha = 0.2) + 
+  xlab('DIV7 expression / DIV0 expression, log2') + 
+  ylab('-log10(FDR)') + theme_classic(16) +
+  scale_color_manual(values = c('gray', 'red'), 
+                     labels = c('NS', 'FDR &lt; 0.01'), name = '') +
+  theme(legend.position = c(0.8, 0.5)) + 
+  guides(color = guide_legend(override.aes = list(alpha = 1)))
+```
+]
+]
+]
+
+--
+
+.pull-right[
+.plot[
+&lt;img src="RNAseq_DE_slides_files/figure-html/DEvolcano_3fold-out-1.png" width="504" /&gt;
+]
+]
+
+--
+
+Again, fewer genes, but we can probably be more confident in them.
+
+---
+
+# Plotting the expression of single genes
+
+Sometimes we will have particular marker genes that we might want to highlight to give confidence that the experiment worked as expected.  We can plot the expression of these genes in each replicate. For this case, let's plot the expression of two .blue[pluripotency] genes (which we expect to .blue[decrease]) and two strongly .orange[neuronal] genes (which we expect to .orange[increase]).
+
+--
+
+So what is the value that we would plot? Probably the most correct value is the 'normalized counts' value provided by `DESeq2`. This value is the safest to compare across samples within a gene.  These counts are raw counts that have been normalized for sequencing depth and sample composition. However, I find that it is difficult to quickly get a sense of the expression level of a gene from it's number of normalized counts.  
+
+--
+
+Let's say a gene had 500 normalized counts. Is that a .orange[highly] expressed gene? A .blue[lowly] expressed gene? Well, I won't really know unless I knew the length of the gene, and I don't have the length of every gene memorized.
+
+--
+
+A more interpretable value to plot might be TPM, since TPM is length-normalized.  Let's say a gene was expressed at 500 TPM. Right off the bat, I know generally what kind of expression that reflects (pretty .orange[high]).
+
+--
+
+.code[
+
+```r
+#If you are interested in getting normalized counts, here's how you do it
+normcounts &lt;- counts(dds, normalized = TRUE)
+```
+]
+
+---
+
+# Plotting the expression of single genes
+
+Let's plot the expression of .blue[Klf4], .blue[Sox2], .orange[Bdnf], and .orange[Dlg4] in our samples.
+
+--
+
+.code[
+
+```r
+#Get a table of tpms...remember txi is our tximport object
+tpms &lt;- txi$abundance %&gt;%
+  as.data.frame(.) %&gt;%
+  rownames_to_column(., var = 'ensembl_gene_id') %&gt;%
+  inner_join(unique(dplyr::select(t2g, -ensembl_transcript_id)), ., by = 'ensembl_gene_id') %&gt;%
+  dplyr::rename(., Gene = external_gene_name) %&gt;%
+  #Filter for genes we are interested in
+  filter(., Gene %in% c('Klf4', 'Sox2', 'Bdnf', 'Dlg4'))
+
+kable(tpms[1:4,])
+```
+]
+
+--
+
+.plot[
+
+|ensembl_gene_id    |Gene |  DIV0.Rep1|  DIV0.Rep2|  DIV0.Rep3|  DIV7.Rep1|  DIV7.Rep2|  DIV7.Rep3|  DIV7.Rep4|
+|:------------------|:----|----------:|----------:|----------:|----------:|----------:|----------:|----------:|
+|ENSMUSG00000003032 |Klf4 |  40.022629|  46.241797|  57.374566|   9.063035|   9.208364|   9.715119|   8.817037|
+|ENSMUSG00000048482 |Bdnf |   2.456452|   2.401157|   2.351342|   7.799981|   7.762255|   7.638515|   7.433529|
+|ENSMUSG00000020886 |Dlg4 |  18.752921|  15.749749|  12.212636| 151.558403| 156.043098| 153.269475| 153.538436|
+|ENSMUSG00000074637 |Sox2 | 131.032132| 120.433905| 110.664468|  24.484942|  26.080394|  27.106054|  26.995461|
+]
+
+---
+
+# Plotting the expression of single genes
+
+OK, this is close to what we want, but in order to plot it we need to turn it from a wide table into a long table.
+
+.code[
+
+```r
+#Key is the new 'naming' variable
+#Value is the new 'value' variable
+#At the end we give it the columns that contain the values
+#we want to reshape
+tpms &lt;- gather(tpms, key = sample, value = tpm, DIV0.Rep1:DIV7.Rep4)
+kable(tpms)
+```
+]
+
+--
+
+.scroll-box-14[
+.plot[
+
+|ensembl_gene_id    |Gene |sample    |        tpm|
+|:------------------|:----|:---------|----------:|
+|ENSMUSG00000003032 |Klf4 |DIV0.Rep1 |  40.022629|
+|ENSMUSG00000048482 |Bdnf |DIV0.Rep1 |   2.456452|
+|ENSMUSG00000020886 |Dlg4 |DIV0.Rep1 |  18.752921|
+|ENSMUSG00000074637 |Sox2 |DIV0.Rep1 | 131.032132|
+|ENSMUSG00000003032 |Klf4 |DIV0.Rep2 |  46.241797|
+|ENSMUSG00000048482 |Bdnf |DIV0.Rep2 |   2.401157|
+|ENSMUSG00000020886 |Dlg4 |DIV0.Rep2 |  15.749749|
+|ENSMUSG00000074637 |Sox2 |DIV0.Rep2 | 120.433905|
+|ENSMUSG00000003032 |Klf4 |DIV0.Rep3 |  57.374566|
+|ENSMUSG00000048482 |Bdnf |DIV0.Rep3 |   2.351342|
+|ENSMUSG00000020886 |Dlg4 |DIV0.Rep3 |  12.212636|
+|ENSMUSG00000074637 |Sox2 |DIV0.Rep3 | 110.664468|
+|ENSMUSG00000003032 |Klf4 |DIV7.Rep1 |   9.063035|
+|ENSMUSG00000048482 |Bdnf |DIV7.Rep1 |   7.799981|
+|ENSMUSG00000020886 |Dlg4 |DIV7.Rep1 | 151.558403|
+|ENSMUSG00000074637 |Sox2 |DIV7.Rep1 |  24.484942|
+|ENSMUSG00000003032 |Klf4 |DIV7.Rep2 |   9.208364|
+|ENSMUSG00000048482 |Bdnf |DIV7.Rep2 |   7.762255|
+|ENSMUSG00000020886 |Dlg4 |DIV7.Rep2 | 156.043098|
+|ENSMUSG00000074637 |Sox2 |DIV7.Rep2 |  26.080394|
+|ENSMUSG00000003032 |Klf4 |DIV7.Rep3 |   9.715119|
+|ENSMUSG00000048482 |Bdnf |DIV7.Rep3 |   7.638515|
+|ENSMUSG00000020886 |Dlg4 |DIV7.Rep3 | 153.269475|
+|ENSMUSG00000074637 |Sox2 |DIV7.Rep3 |  27.106054|
+|ENSMUSG00000003032 |Klf4 |DIV7.Rep4 |   8.817037|
+|ENSMUSG00000048482 |Bdnf |DIV7.Rep4 |   7.433529|
+|ENSMUSG00000020886 |Dlg4 |DIV7.Rep4 | 153.538436|
+|ENSMUSG00000074637 |Sox2 |DIV7.Rep4 |  26.995461|
+]
+]
+
+---
+
+# Plotting the expression of single genes
+
+Now add one more column that tells which condition each replicate belongs to.
+
+.code[
+
+```r
+tpms &lt;- mutate(tpms, condition = ifelse(grepl('DIV0', sample), 'DIV0', 'DIV7'))
+kable(tpms)
+```
+]
+
+--
+
+.scroll-box-14[
+.plot[
+
+|ensembl_gene_id    |Gene |sample    |        tpm|condition |
+|:------------------|:----|:---------|----------:|:---------|
+|ENSMUSG00000003032 |Klf4 |DIV0.Rep1 |  40.022629|DIV0      |
+|ENSMUSG00000048482 |Bdnf |DIV0.Rep1 |   2.456452|DIV0      |
+|ENSMUSG00000020886 |Dlg4 |DIV0.Rep1 |  18.752921|DIV0      |
+|ENSMUSG00000074637 |Sox2 |DIV0.Rep1 | 131.032132|DIV0      |
+|ENSMUSG00000003032 |Klf4 |DIV0.Rep2 |  46.241797|DIV0      |
+|ENSMUSG00000048482 |Bdnf |DIV0.Rep2 |   2.401157|DIV0      |
+|ENSMUSG00000020886 |Dlg4 |DIV0.Rep2 |  15.749749|DIV0      |
+|ENSMUSG00000074637 |Sox2 |DIV0.Rep2 | 120.433905|DIV0      |
+|ENSMUSG00000003032 |Klf4 |DIV0.Rep3 |  57.374566|DIV0      |
+|ENSMUSG00000048482 |Bdnf |DIV0.Rep3 |   2.351342|DIV0      |
+|ENSMUSG00000020886 |Dlg4 |DIV0.Rep3 |  12.212636|DIV0      |
+|ENSMUSG00000074637 |Sox2 |DIV0.Rep3 | 110.664468|DIV0      |
+|ENSMUSG00000003032 |Klf4 |DIV7.Rep1 |   9.063035|DIV7      |
+|ENSMUSG00000048482 |Bdnf |DIV7.Rep1 |   7.799981|DIV7      |
+|ENSMUSG00000020886 |Dlg4 |DIV7.Rep1 | 151.558403|DIV7      |
+|ENSMUSG00000074637 |Sox2 |DIV7.Rep1 |  24.484942|DIV7      |
+|ENSMUSG00000003032 |Klf4 |DIV7.Rep2 |   9.208364|DIV7      |
+|ENSMUSG00000048482 |Bdnf |DIV7.Rep2 |   7.762255|DIV7      |
+|ENSMUSG00000020886 |Dlg4 |DIV7.Rep2 | 156.043098|DIV7      |
+|ENSMUSG00000074637 |Sox2 |DIV7.Rep2 |  26.080394|DIV7      |
+|ENSMUSG00000003032 |Klf4 |DIV7.Rep3 |   9.715119|DIV7      |
+|ENSMUSG00000048482 |Bdnf |DIV7.Rep3 |   7.638515|DIV7      |
+|ENSMUSG00000020886 |Dlg4 |DIV7.Rep3 | 153.269475|DIV7      |
+|ENSMUSG00000074637 |Sox2 |DIV7.Rep3 |  27.106054|DIV7      |
+|ENSMUSG00000003032 |Klf4 |DIV7.Rep4 |   8.817037|DIV7      |
+|ENSMUSG00000048482 |Bdnf |DIV7.Rep4 |   7.433529|DIV7      |
+|ENSMUSG00000020886 |Dlg4 |DIV7.Rep4 | 153.538436|DIV7      |
+|ENSMUSG00000074637 |Sox2 |DIV7.Rep4 |  26.995461|DIV7      |
+]
+]
+
+---
+
+# Plotting the expression of single genes
+
+Now let's plot. 
+Remember, we are expecting our .blue[pluripotency] genes (.blue[Klf4] and .blue[Sox2]) to go down while our .orange[neuron]-specific genes (.orange[Bdnf] and .orange[Dlg4]) should go up. 
+
+.pull-left[
+.code[
+
+```r
+ggplot(tpms, aes(x = condition, y = tpm, color = condition)) + 
+  geom_point(pch = 21, size = 4) + 
+  ylab('TPM') + xlab('') + theme_classic(16) + 
+  scale_color_manual(values = c('blue', 'red'), guide = F) +
+  facet_wrap(~Gene, scales = 'free_y')
+```
+]
+]
+
+--
+
+.plot[
+&lt;img src="RNAseq_DE_slides_files/figure-html/plotsingletpms-out-1.png" width="504" /&gt;
+]
+
+---
+
+#Plotting the expression of groups of genes
+
+OK, that's cool and all, but let's do something a little bigger. Say that instead of plotting individual genes we wanted to ask whether a whole class of genes are going .orange[up] or .blue[down].  We can do that by retrieving all genes that belong to a particular gene ontology term.
+
+There are three classes of genes we will look at here: 
+ - Maintenance of pluripotency (GO:0019827)
+ - Positive regulation of the cell cycle (GO:0045787)
+ - Neuronal differentitaion (GO:0030182)
+ 
+--
+
+So the idea here is to ask if the genes that belong to these categories behave differently than genes not in the category.
+
+---
+
+#Plotting the expression of groups of genes
+
+We can use `biomaRt` to get all genes that belong to each of these categories.  Think of it like doing a gene ontology enrichment analysis in reverse.
+
+.pull-left[
+.scroll-box-14[
+.code[
+
+```r
+pluripotencygenes &lt;- getBM(attributes = c('ensembl_gene_id'), 
+                           filters = c('go_parent_term'), 
+                           values = c('GO:0019827'), 
+                           mart = mart)
+
+cellcyclegenes &lt;- getBM(attributes = c('ensembl_gene_id'), 
+                        filters = c('go_parent_term'), 
+                        values = c('GO:0045787'), 
+                        mart = mart)
+
+neurongenes &lt;- getBM(attributes = c('ensembl_gene_id'), 
+                     filters = c('go_parent_term'), 
+                     values = c('GO:0030182'), 
+                     mart = mart)
+
+head(pluripotencygenes)
+```
+]
+]
+]
+
+--
+
+.pull-right[
+.scroll-box-14[
+.plot[
+
+```
+#&gt;      ensembl_gene_id
+#&gt; 1 ENSMUSG00000028640
+#&gt; 2 ENSMUSG00000027612
+#&gt; 3 ENSMUSG00000063382
+#&gt; 4 ENSMUSG00000008999
+#&gt; 5 ENSMUSG00000042275
+#&gt; 6 ENSMUSG00000050966
+```
+]
+]
+]
+
+--
+
+You can see that these items are one-column dataframes that have the column name 'ensembl_gene_id'.  We can now go through our results dataframe and add an annotation column that marks whether the gene is in any of these categories.
+
+---
+
+#Plotting the expression of groups of genes
+
+.code[
+.scroll-box-10[
+
+```r
+differentiation.results.annot &lt;- differentiation.results %&gt;%
+  mutate(., annot = case_when(ensembl_gene_id %in% pluripotencygenes$ensembl_gene_id ~ 'pluripotency',
+                      ensembl_gene_id %in% cellcyclegenes$ensembl_gene_id ~ 'cellcycle',
+                      ensembl_gene_id %in% neurongenes$ensembl_gene_id ~ 'neurondiff',
+                      TRUE ~ 'none'))
+
+#Reorder these for plotting purposes
+differentiation.results.annot$annot &lt;- factor(differentiation.results.annot$annot, 
+                                              levels = c('none', 'cellcycle', 'pluripotency', 'neurondiff'))
+
+kable(differentiation.results.annot[1:20,])
+```
+]
+]
+--
+
+.scroll-box-10[
+.plot[
+
+|ensembl_gene_id    |Gene    | log2FoldChange|      padj|annot |
+|:------------------|:-------|--------------:|---------:|:-----|
+|ENSMUSG00000064372 |mt-Tp   |      2.9854645| 0.0000000|none  |
+|ENSMUSG00000064371 |mt-Tt   |     -2.9647630| 0.0056641|none  |
+|ENSMUSG00000064370 |mt-Cytb |      0.2521125| 0.0025608|none  |
+|ENSMUSG00000064369 |mt-Te   |     -0.0730461| 0.9203204|none  |
+|ENSMUSG00000064368 |mt-Nd6  |      0.2969130| 0.0011097|none  |
+|ENSMUSG00000064367 |mt-Nd5  |      0.2092389| 0.0163530|none  |
+|ENSMUSG00000064366 |mt-Tl2  |     -2.0268710| 0.0142720|none  |
+|ENSMUSG00000064365 |mt-Ts2  |     -3.3307513| 0.0003872|none  |
+|ENSMUSG00000064364 |mt-Th   |     -4.0737942| 0.0043367|none  |
+|ENSMUSG00000064363 |mt-Nd4  |      0.4103481| 0.0000065|none  |
+|ENSMUSG00000065947 |mt-Nd4l |      0.0688742| 0.5926029|none  |
+|ENSMUSG00000064361 |mt-Tr   |      1.5164924| 0.8959542|none  |
+|ENSMUSG00000064360 |mt-Nd3  |      0.6648693| 0.0001864|none  |
+|ENSMUSG00000064359 |mt-Tg   |      0.0498874| 0.9827623|none  |
+|ENSMUSG00000064358 |mt-Co3  |      0.4623485| 0.0000000|none  |
+|ENSMUSG00000064357 |mt-Atp6 |     -0.0685590| 0.7023012|none  |
+|ENSMUSG00000064356 |mt-Atp8 |      0.2468412| 0.0025910|none  |
+|ENSMUSG00000064355 |mt-Tk   |     -2.3262141| 0.4106163|none  |
+|ENSMUSG00000064354 |mt-Co2  |      0.2276855| 0.0077794|none  |
+|ENSMUSG00000064353 |mt-Td   |     -2.4247954| 0.7524850|none  |
+]
+]
+
+---
+
+#Plotting the expression of groups of genes
+
+OK we've got our table, now we are going to ask if the log2FoldChange values for the genes in each of these classes are different that what we would expect.  So what is the expected value?  Well, we have a distribution of log2 fold changes for all the genes that are .red[*not*] in any of these categories.  So we will ask if the distribution of log2 fold changes for each gene category is different than that null distribution.
+
+--
+
+You can tie yourself in knots worrying about what is the right test to use for a lot of these things. What are the assumptions of the test? Does my data fit these assumptions?  Is it normally distributed? My advice is to pretty much always just use rank-based nonparametric tests.  Yes, you will sacrifice some power, meaning that your *p* values will generally be higher than those produced by parametric tests that make assumptions.  However, in genomics, we often have many observations of something or many members in our groups. So if your *p* value is borderline where the choice of test makes a big difference, I'm already a little skeptical.
+
+---
+
+#Wilcoxon rank sum test
+
+For each GO group, use a .hotpink[Wilcoxon rank sum] test to ask if the log2FoldChange values for genes .orange[within] the group are different from the log2FoldChange values for genes .blue[outside of] the group.
+
+--
+
+.code[
+
+```r
+#Compare log2FC values for pluripotency genes and other genes
+p.pluripotency &lt;- wilcox.test(filter(differentiation.results.annot, annot == 'pluripotency')$log2FoldChange,
+                              filter(differentiation.results.annot, annot == 'none')$log2FoldChange)$p.value
+
+#Only 2 significant digits for the p value, s'il vous plait
+p.pluripotency &lt;- signif(p.pluripotency, 2)
+
+p.cellcycle &lt;- wilcox.test(filter(differentiation.results.annot, annot == 'cellcycle')$log2FoldChange,
+                              filter(differentiation.results.annot, annot == 'none')$log2FoldChange)$p.value
+p.cellcycle &lt;- signif(p.cellcycle, 2)
+
+p.neurondiff &lt;- wilcox.test(filter(differentiation.results.annot, annot == 'neurondiff')$log2FoldChange,
+                              filter(differentiation.results.annot, annot == 'none')$log2FoldChange)$p.value
+p.neurondiff &lt;- signif(p.neurondiff, 2)
+```
+]
+
+&gt; Note: Astute viewers may notice that we are not comparing every gene .orange[within] a category to all genes .blue[outside] of it. We are comparing all genes .orange[within] a category to genes that are not in *any* category. This is a reasonable approximation for all genes since most genes aren't in any of these three categories.
+
+---
+
+#Plot results
+
+.pull-left[
+.scroll-box-18[
+.code[
+
+```r
+ggplot(differentiation.results.annot, aes(x = annot, y = log2FoldChange, color = annot)) +
+  xlab('Gene class') + ylab('DIV7 expression / DIV0 expression, log2') +
+  #Make gray dotted line at y=0
+  geom_hline(yintercept = 0, color = 'gray', linetype = 'dashed') +
+  #Boxplot to compare distributions
+  geom_boxplot(notch = TRUE, outlier.shape = NA) +
+  #Set colors manually
+  theme_classic(14) + scale_color_manual(values = c('gray', 'red', 'blue', 'purple'), guide = F) +
+  #Label x values
+  scale_x_discrete(labels = c('none', 'Cell cycle', 'Pluripotency', 'Neuron\ndifferentiation')) +
+  #Set plot yvalue limits
+  coord_cartesian(ylim = c(-5, 8)) +
+  #Draw lines over samples
+  annotate('segment', x = 1, xend = 2, y = 4, yend = 4) +
+  annotate('segment', x = 1, xend = 3, y = 5, yend = 5) +
+  annotate('segment', x = 1, xend = 4, y = 6, yend = 6) +
+  #Add pvalue results
+  annotate('text', x = 1.5, y = 4.4, label = paste0('p = ', p.cellcycle)) +
+  annotate('text', x = 2, y = 5.4, label = paste0('p = ', p.pluripotency)) +
+  annotate('text', x = 2.5, y = 6.4, label = paste0('p = ', p.neurondiff))
+```
+]
+]
+]
+
+--
+
+.pull-right[
+.plot[
+&lt;img src="RNAseq_DE_slides_files/figure-html/plotGO-out-1.png" width="504" /&gt;
+]
+]
+    </textarea>
+<style data-target="print-only">@media screen {.remark-slide-container{display:block;}.remark-slide-scaler{box-shadow:none;}}</style>
+<script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
+<script>var slideshow = remark.create({
+"ratio": "16:9",
+"highlightStyle": "github",
+"highlightLines": true,
+"countIncrementalSlides": false,
+"navigation": {
+"scroll": false
+}
+});
+if (window.HTMLWidgets) slideshow.on('afterShowSlide', function (slide) {
+  window.dispatchEvent(new Event('resize'));
+});
+(function(d) {
+  var s = d.createElement("style"), r = d.querySelector(".remark-slide-scaler");
+  if (!r) return;
+  s.type = "text/css"; s.innerHTML = "@page {size: " + r.style.width + " " + r.style.height +"; }";
+  d.head.appendChild(s);
+})(document);
+
+(function(d) {
+  var el = d.getElementsByClassName("remark-slides-area");
+  if (!el) return;
+  var slide, slides = slideshow.getSlides(), els = el[0].children;
+  for (var i = 1; i < slides.length; i++) {
+    slide = slides[i];
+    if (slide.properties.continued === "true" || slide.properties.count === "false") {
+      els[i - 1].className += ' has-continuation';
+    }
+  }
+  var s = d.createElement("style");
+  s.type = "text/css"; s.innerHTML = "@media print { .has-continuation { display: none; } }";
+  d.head.appendChild(s);
+})(document);
+// delete the temporary CSS (for displaying all slides initially) when the user
+// starts to view slides
+(function() {
+  var deleted = false;
+  slideshow.on('beforeShowSlide', function(slide) {
+    if (deleted) return;
+    var sheets = document.styleSheets, node;
+    for (var i = 0; i < sheets.length; i++) {
+      node = sheets[i].ownerNode;
+      if (node.dataset["target"] !== "print-only") continue;
+      node.parentNode.removeChild(node);
+    }
+    deleted = true;
+  });
+})();
+(function() {
+  "use strict"
+  // Replace <script> tags in slides area to make them executable
+  var scripts = document.querySelectorAll(
+    '.remark-slides-area .remark-slide-container script'
+  );
+  if (!scripts.length) return;
+  for (var i = 0; i < scripts.length; i++) {
+    var s = document.createElement('script');
+    var code = document.createTextNode(scripts[i].textContent);
+    s.appendChild(code);
+    var scriptAttrs = scripts[i].attributes;
+    for (var j = 0; j < scriptAttrs.length; j++) {
+      s.setAttribute(scriptAttrs[j].name, scriptAttrs[j].value);
+    }
+    scripts[i].parentElement.replaceChild(s, scripts[i]);
+  }
+})();
+(function() {
+  var links = document.getElementsByTagName('a');
+  for (var i = 0; i < links.length; i++) {
+    if (/^(https?:)?\/\//.test(links[i].getAttribute('href'))) {
+      links[i].target = '_blank';
+    }
+  }
+})();
+// adds .remark-code-has-line-highlighted class to <pre> parent elements
+// of code chunks containing highlighted lines with class .remark-code-line-highlighted
+(function(d) {
+  const hlines = d.querySelectorAll('.remark-code-line-highlighted');
+  const preParents = [];
+  const findPreParent = function(line, p = 0) {
+    if (p > 1) return null; // traverse up no further than grandparent
+    const el = line.parentElement;
+    return el.tagName === "PRE" ? el : findPreParent(el, ++p);
+  };
+
+  for (let line of hlines) {
+    let pre = findPreParent(line);
+    if (pre && !preParents.includes(pre)) preParents.push(pre);
+  }
+  preParents.forEach(p => p.classList.add("remark-code-has-line-highlighted"));
+})(document);</script>
+
+<script>
+slideshow._releaseMath = function(el) {
+  var i, text, code, codes = el.getElementsByTagName('code');
+  for (i = 0; i < codes.length;) {
+    code = codes[i];
+    if (code.parentNode.tagName !== 'PRE' && code.childElementCount === 0) {
+      text = code.textContent;
+      if (/^\\\((.|\s)+\\\)$/.test(text) || /^\\\[(.|\s)+\\\]$/.test(text) ||
+          /^\$\$(.|\s)+\$\$$/.test(text) ||
+          /^\\begin\{([^}]+)\}(.|\s)+\\end\{[^}]+\}$/.test(text)) {
+        code.outerHTML = code.innerHTML;  // remove <code></code>
+        continue;
+      }
+    }
+    i++;
+  }
+};
+slideshow._releaseMath(document);
+</script>
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+(function () {
+  var script = document.createElement('script');
+  script.type = 'text/javascript';
+  script.src  = 'https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-MML-AM_CHTML';
+  if (location.protocol !== 'file:' && /^https?:/.test(script.src))
+    script.src  = script.src.replace(/^https?:/, '');
+  document.getElementsByTagName('head')[0].appendChild(script);
+})();
+</script>
+  </body>
+</html>

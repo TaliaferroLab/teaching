@@ -1,0 +1,13 @@
+{
+    "salmon_version": "0.11.1",
+    "libType": "A",
+    "threads": "8",
+    "seqBias": [],
+    "gcBias": [],
+    "validateMappings": [],
+    "mates1": "/beevol/home/taliaferro/data/TXpsi/NeuronDifferentiation/RawReads/DIV28.Rep4_1.fastq.gz",
+    "mates2": "/beevol/home/taliaferro/data/TXpsi/NeuronDifferentiation/RawReads/DIV28.Rep4_2.fastq.gz",
+    "output": "DIV28.Rep4",
+    "index": "transcripts.idx",
+    "auxDir": "aux_info"
+}
