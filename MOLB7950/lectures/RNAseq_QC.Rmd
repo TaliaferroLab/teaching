@@ -1,0 +1,388 @@
+---
+title: "RNAseq_QC"
+author: "Matthew Taliaferro"
+date: "6/14/2020"
+output:
+  pdf_document: default
+  html_document: default
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+  
+```{r echo=F, message=FALSE, warning=FALSE}
+library(tximport)
+library(DESeq2)
+library(tidyverse)
+library(knitr)
+library(RColorBrewer)
+library(ggrepel)
+library(pheatmap)
+library(biomaRt)
+```
+
+# Overview
+
+In this document, we will examine RNAseq data collected over a timecourse of differentiation from mouse embryonic stem cells to cortical glutamatergic neurons [(Hubbard et al, F1000 Research (2013))](10.12688/f1000research.2-35.v1). In this publication, the authors differentiated mESCs to neurons using a series of *in vitro* culture steps over a period of 37 days. During this timecourse, samples were extracted at selected intervals for transcriptome analysis. Importantly, for each timepoint, either 3 or 4 samples were taken for RNA extraction, library preparation and sequencing.  This allows us to efficiently use the statistical frameworks provided by the [DESeq2](http://bioconductor.org/packages/devel/bioc/vignettes/DESeq2/inst/doc/DESeq2.html) package to identify genes whose RNA expression changes across the timecourse.
+
+Cells were grown in generic differentiation-promoting media (LIF^-^) for 8 days until aggreates were dissociated and replated in neuronal differentiation media. This day of replating was designated as *in vitro* day 0 (DIV0).  The timepoints taken before this replating therefore happened at "negative" times (DIV-8 and DIV-4). Because naming files with dashes or minus signs can cause problems, these samples are referred to as DIVminus8 and DIVminus4. Following the replating, samples were taken at days 1, 7, 16, 21, and 28 (DIV1, DIV7, DIV16, DIV21, and DIV28).
+
+Today we will focus on some Quality Control steps that are good ideas to do for every RNAseq dataset you encounter, whether produced by yourself or someone else. 
+
+
+# Quantification of reads with salmon
+
+We recently learned about the RNAseq quantification tool [salmon](https://combine-lab.github.io/salmon/). We won't rehash the details here about how salmon works. For our purposes, we just need to know that salmon reads in a fastq file of sequencing reads and a fasta file of transcript sequences to be quantified. Let's take a look at this fasta file of transcripts:
+
+![](../img/transcriptomefasta.png)
+ Looks like we have [ensembl](www.ensembl.org) transcript IDs, which is a good idea. I can tell because they start with 'ENS'. Using ensembl IDs as transcript names will allow us to later collate transcript expression levels into gene expression levels using a database that relates transcripts and genes.  More on that later.
+ 
+### Making a transcriptome index
+
+The first step in quantifying these transcripts is to make an index from them. This is done as follows:
+
+    salmon index -t <transcripts.fa> -i <transcripts.idx> --type quasi -k <k>
+    
+Here, transcripts.fa is a path to our fasta file, transcripts.idx is the name of the index that will be created, and k is the length of the kmers that will be used in the hash table related kmers and transcripts. k is the length of the minimum accepted match for a kmer in a read and a kmer in a transcript. Longer kmers (higher values of k) will therefore be more stringent, and lowering k may improve mapping sensitivity at the cost of some specificity.  You may also see here how read lengths can influence what value for k you should choose.  
+
+Consider an experiment where we had 25 nt reads (this was true wayyyyyy back in the old, dark days of high-throughput sequencing). What's going to happen if I quantify these reads using an index where the kmer size was set to 29?  Well, nothing will align.  The index has represented the transcriptome in 29 nt chunks.  However, no read will match to these 29mers because there are no 29mers in these reads!  *As a general rule of thumb, for reads 75 nt and longer (which is the bulk of the data produced nowadays), a good value for k that maximizes both specificity and sensitivity is 31*.  However, datasets that you may retrieve from the internet, particularly older ones, may have shorter read lengths, so keep this is mind when defining k.
+
+### Quantifying reads against your index
+
+Once we have our index, we can quantify transcripts in the index using reads from our fastq files.
+
+    salmon quant --libType A -p 8 --seqBias --gcBias --validateMappings -1 <forwardreads.fastq> -2 <reversereads.fastq> -o <outputname> --index <transcripts.idx>
+    
+In this command, our forward and reverse read fastq files are supplied to -1 and -2, respectively. If the experiment produced single end reads, -2 is omitted. <transcripts.idx> is the path to the index produced in the previous step.  I'm not going to go through the rest of the flags used here, but their meanings as well as other options can be found [here](https://salmon.readthedocs.io/en/latest/salmon.html#using-salmon)
+
+### Salmon outputs
+
+Let's take a look at what salmon spits out. The first file we will look at is a log that is found at **/logs/salmon_quant.log**.  This file contains info about the quantification, but there's one line of this file in particular that we are interested in. It lets us know how many of the reads in the fastq file that salmon found a home for in the transcriptome fasta.
+
+![](../img/salmonlog.png)
+
+There are a lot of lines in this file, but really only one that we are interested in. We want the one that tells us the "Mapping rate."  How could we easily and efficiently look at the mapping rates of all our samples? **Grep!**
+
+```{bash, results = 'hide'}
+#Get the mapping rates for all samples
+#In each log file, the line that we are interested in contains the string 'Mapping ' (notice the space)
+grep 'Mapping ' ../data/salmonouts/*/logs/salmon_quant.log
+```
+
+Another way to do this is to use a tool called [MultiQC](https://multiqc.info/). MultiQC is a python package that, given a place to look, will scan for the log files produced by many common sequence analysis programs, including salmon.  It will output an html file that is nice for inspecting sample stats and quickly identifying outlier samples.
+
+```{bash, eval = FALSE}
+multiqc data/salmonouts/*
+```
+
+![](../img/salmonmapping.png)
+![](../img/salmonfraglength.png)
+
+# Moving from transcript quantifications to gene quantifications
+
+As we discussed, salmon quantifies *transcripts*, not *genes*. However, genes are made up of transcripts, so we can calculate gene expression values from transcript expression values if we knew which transcripts belonged to which genes.  We can get this information through `biomaRt`.
+
+`biomaRt` has many tables that relate genes, transcripts, and other useful data include gene biotypes and gene ontology categories, even across species.  Let's use it here to get a table of genes and transcripts for the mouse genome.
+
+```{r}
+#Load biomaRt
+library(biomaRt)
+
+#First we need to define a 'mart' to use.  There are a handful of them that you can see here:
+listMarts(mart = NULL, host = 'uswest.ensembl.org')
+```
+
+I encourage you to see what is in each mart, but for now we are only going to use ENSEMBL_MART_ENSEMBL
+This may take a minute or two to connect.
+```{r}
+mart <- biomaRt::useMart("ENSEMBL_MART_ENSEMBL", host='uswest.ensembl.org')
+```
+
+Alright, we've chosen our mart. What datasets are available in this mart?
+```{r}
+datasets <- listDatasets(mart)
+kable(datasets)
+```
+
+Alot of stuff for a lot of species! Perhaps we want to limit it to see which ones are relevant to mouse.
+```{r}
+mousedatasets <- filter(datasets, grepl('mmusculus', dataset))
+head(mousedatasets)
+```
+
+Ah so we probably want the dataset called 'mmusculus_gene_ensembl'!
+```{r}
+mart <- biomaRt::useMart("ENSEMBL_MART_ENSEMBL", dataset = "mmusculus_gene_ensembl", host='uswest.ensembl.org')
+```
+
+OK what goodies are in this dataset?
+```{r}
+goodies <- listAttributes(mart)
+head(goodies)
+```
+
+So there are 2885 rows of goodies about the mouse genome and its relationship to *many* other genomes.  However, you can probably see that the ones that are most useful to us right now are right at the top: 'ensembl_transcript_id' and 'ensembl_gene_id'.  We can use those attributes in our mart to make a table relating genes and transcripts.
+
+I'm going to through one more attribute in: external_gene_name. Those are usually more informative than ensembl IDs.
+
+```{r warning=FALSE}
+t2g <- biomaRt::getBM(attributes = c('ensembl_transcript_id', 'ensembl_gene_id', 'external_gene_name'), mart = mart)
+head(t2g)
+```
+Alright this looks good! We are going to split this into two tables. One that contains transcript ID and gene ID, and the other that contains gene ID and gene name.
+```{r}
+geneid2name <- dplyr::select(t2g, c(ensembl_gene_id, ensembl_transcript_id))
+t2g <- dplyr::select(t2g, c(ensembl_transcript_id, ensembl_gene_id))
+```
+
+
+## Getting gene level expression data with `tximport`
+
+Now that we have our table relating transcripts and genes, we can give it to tximport to have it calculate gene-level expression data from our transcript-level expression data.
+
+First, we have to tell it where the salmon quantification files (the quant.sf files) are. Here's what our directory structure that contains these files looks like:
+
+![](../img/salmondirstructure.png)
+
+```{r}
+#The directory where all of the sample-specific salmon subdirectories live
+base_dir <- '../data/salmonouts/'
+
+#The names of all the sample-specific salmon subdirectories
+sample_ids <- c('DIVminus8.Rep1', 'DIVminus8.Rep2', 'DIVminus8.Rep3', 'DIVminus8.Rep4',
+                'DIVminus4.Rep1', 'DIVminus4.Rep2', 'DIVminus4.Rep3',
+                'DIV0.Rep1', 'DIV0.Rep2', 'DIV0.Rep3',
+                'DIV1.Rep1', 'DIV1.Rep2', 'DIV1.Rep3', 'DIV1.Rep4',
+                'DIV7.Rep1', 'DIV7.Rep2', 'DIV7.Rep3', 'DIV7.Rep4',
+                'DIV16.Rep1', 'DIV16.Rep2', 'DIV16.Rep3', 'DIV16.Rep4',
+                'DIV21.Rep1', 'DIV21.Rep2', 'DIV21.Rep3', 'DIV21.Rep4',
+                'DIV28.Rep1', 'DIV28.Rep2', 'DIV28.Rep3', 'DIV28.Rep4')
+
+#So what we want to do now is create paths to each quant.sf file that is in each sample_id.
+#This can be done by combining the base_dir, each sample_id directory, and 'quant.sf'
+#For example, the path to the first file will be data/salmonouts/DIVminus8.Rep1/quant.sf
+
+salm_dirs <- sapply(sample_ids, function(id) file.path(base_dir, id, 'quant.sf'))
+salm_dirs
+```
+
+You can see that we get a list of sample names and the absolute path to each sample's quantification file.
+
+Now we are ready to run `tximport`!  `tximport` is going to want paths to all the quantification files (salm_dirs) and a table that relates transcripts to genes (t2g). Luckily, we happen to have those exact two things.
+```{r}
+txi <- tximport(salm_dirs, type = 'salmon', tx2gene = t2g, dropInfReps = TRUE, countsFromAbundance = 'lengthScaledTPM')
+```
+
+Notice how we chose *lengthscaledTPM* for our abundance measurement. This is going to give us TPM values (transcripts per million) for expression in the $abundance slot. Let's check out what we have now.
+```{r}
+tpms <- txi$abundance %>%
+  as.data.frame(.) %>%
+  rownames_to_column(var = 'ensembl_gene_id')
+
+head(tpms)
+```
+
+Alright, not bad!
+
+Let's stop and think for a minute about what `tximport` did and the metric we are using (TPM).  What does *transcripts per million* mean?  Well, it means pretty much what it sounds like.  For every million transcripts in the cell, X of them are this particular transcript.  Importantly, this means when this TPM value was calculated from the number of *counts* a transcript received, this number had to be adjusted for both the total number of counts in the library and the length of a transcript.
+
+If sample A had twice the number of total counts as sample B (i.e. was sequenced twice as deeply), then you would expect every transcript to have approximately twice the number of counts in sample A as it has in sample B.  Similarly, if transcript X is twice as long as transcript Y, then you would expect that if they were equally expressed (i.e. the same number of transcript X and transcript Y molecules were present in the sample) that X would have approximately twice the counts that Y does. Working with expression units of TPM incorporates both of these normalizations.
+
+So, if a TPM of X means that for every million transcripts in the sample that X of them were the transcript of interest, then the sum of TPM values across all species should equal one million, right?
+
+Let's check and see if that's true.
+```{r}
+sum(tpms$DIVminus8.Rep1)
+sum(tpms$DIVminus8.Rep2)
+sum(tpms$DIVminus8.Rep3)
+```
+
+OK, not quite one million, but pretty darn close.
+
+This notion that TPMs represent proportions of a whole also leads to another interesting insight into what `tximport` is doing here. If all transcripts belong to genes, then the TPM for a gene must be the sum of the TPMs of its transcripts. Can we verify that that is true?
+
+```{r}
+#Redefine for clarity in comparisons
+tpms.genes <- tpms
+
+#Make a new tximport object, but this time instead of giving gene expression values, give transcript expression values
+#This is controlled by the `txOut` argument
+txi.transcripts <- tximport(salm_dirs, type = 'salmon', tx2gene = t2g, dropInfReps = TRUE, 
+                            countsFromAbundance = 'lengthScaledTPM', txOut = TRUE)
+
+#Make a table of tpm values for every transcript
+tpms.txs <- txi.transcripts$abundance %>%
+  as.data.frame(.) %>%
+  rownames_to_column(var = 'ensembl_transcript_id') %>%
+  inner_join(t2g, ., by = 'ensembl_transcript_id')
+
+head(tpms.genes)
+head(tpms.txs)
+```
+
+OK so lets look at the expression of ENSMUSG00000020634 in the first sample (DIVminus8.Rep1).
+```{r}
+#Get sum of tpm values for transcripts that belong to ENSMUSG00000020634
+tpms.tx.ENSMUSG00000020634 <- filter(tpms.txs, ensembl_gene_id == 'ENSMUSG00000020634')
+sumoftxtpm <- sum(tpms.tx.ENSMUSG00000020634$DIVminus8.Rep1)
+
+#Get gene level tpm value of ENSMUSG00000020634
+genetpm <- filter(tpms.genes, ensembl_gene_id == 'ENSMUSG00000020634')$DIVminus8.Rep1
+
+#Are they the same?
+sumoftxtpm
+genetpm
+```
+
+# Basic RNAseq QC
+
+OK now that we've got expression values for all genes, we now might want to use these expression values to learn a little bit about our samples. One simple question is 
+
+    Are replicates similar to each other, or at least more similar to each other than to other samples?
+    
+If our data is worth anything at all, we would hope that differences between replicates, which are supposed to be drawn from the same condition, are smaller than differences between samples drawn from different conditions. If that's not true, it could indicate that one replicate is very different from other replciates (in which case we might want to remove it), or that the data in general is of poor quality. 
+
+Another question is
+
+    How similar is each sample to every other sample?
+    
+In our timecourse, we might expect that samples drawn from adjacent timepoints might be more similar to each other than samples from more distant timepoints.
+
+## Hierarchical clustering
+
+A simple way to think about this is to simply correlate TPM values for genes between samples. For plotting purposes here, let's plot the log(TPM) of two samples against each other. However, for the actual correlation coefficient we are going to be using the *Spearman* correlation method, which uses ranks, not absolute values. This means that whether or not you take the log will have no effect on the Spearman correlation coefficient.
+
+```{r}
+#DIVminus8.Rep1 vs DIVminus8.Rep2
+
+#Since we are plotting log TPM values, we need to add a pseudocount to all samples.
+#log(0) is a problem.
+
+#Add pseudocounts and take log within ggplot function call
+r.spearman <- cor.test(tpms$DIVminus8.Rep1, tpms$DIVminus8.Rep2, method = 'spearman')$estimate[[1]]
+r.spearman <- signif(r.spearman, 2)
+ggplot(tpms, aes(x = log10(DIVminus8.Rep1 + 1e-3), y = log10(DIVminus8.Rep2 + 1e-3))) + geom_point() + theme_classic() +
+  annotate('text', x = 2, y = 0, label = paste0('R = ', r.spearman))
+
+```
+
+With RNAseq data, the variance of a gene's expression increases as the expression increases. However, using a pseudocount and taking the log of the expression value actually reverses this trend.  Now, genes with the lowest expression have the most variance. Why is this a problem? Well, the genes with the most variance are going to be the ones that contribute the most to intersample differences. Ideally, we would like to therefore remove the relationship between expression and variance.
+
+There are transformations, notably `rlog` and `vst`, that are made to deal with this, but they are best used when dealing with normalized **count** data, while here we are dealing with TPMs. We will talk about counts later, but not here.
+
+So, for now, we will take another approach of simply using an expression threshold. Any gene that does not meet our threshold will be excluded from the analysis. Obviously where to set this threshold is a bit subjective.  For now, we will set this cutoff at 1 TPM.
+
+```{r}
+#DIVminus8.Rep1 vs DIVminus8.Rep2
+
+#Since we are plotting log TPM values, we need to add a pseudocount to all samples.
+#log(0) is a problem.
+
+#Filter for genes that have expression of at least 1 TPM in both samples
+tpms.2samplecor <- dplyr::select(tpms, c(ensembl_gene_id, DIVminus8.Rep1, DIVminus8.Rep2)) %>%
+  filter(., DIVminus8.Rep1 >= 1 & DIVminus8.Rep2 >= 1)
+
+#Add pseudocounts and take log within ggplot function call
+r.spearman <- cor.test(tpms.2samplecor$DIVminus8.Rep1, tpms.2samplecor$DIVminus8.Rep2, method = 'spearman')$estimate[[1]]
+r.spearman <- signif(r.spearman, 2)
+ggplot(tpms.2samplecor, aes(x = log10(DIVminus8.Rep1 + 1e-3), y = log10(DIVminus8.Rep2 + 1e-3))) + 
+  geom_point() + theme_classic() +
+  annotate('text', x = 2, y = 1, label = paste0('R = ', r.spearman))
+```
+OK that's two samples compared to each other, but now we want to see how **all** samples compare to **all** other samples. Before we do this we need to decide how to apply our expression cutoff across many samples. Should a gene have to meet the cutoff in only one sample?  In all samples?  Let's start by saying it has to meet the cutoff in at least half of the 30 samples.
+```{r}
+#Make a new column in tpms that is the number of samples in which the value is at least 1
+tpms.cutoff <- mutate(tpms, nSamples = rowSums(tpms[,2:31] > 1))%>%
+  #Now filter for rows where nSamples is at least 15
+  #Meaning that at least 15 samples passed the threshold
+  filter(., nSamples >= 15) %>%
+  #Get rid of the nSamples column
+  dplyr::select(., -nSamples)
+
+nrow(tpms)
+nrow(tpms.cutoff)
+```
+
+Now we can use the `cor` function to calculate pairwise correlations in a **matrix** of TPM values.
+```{r}
+tpms.cutoff.matrix <- dplyr::select(tpms.cutoff, -ensembl_gene_id) %>%
+  as.matrix(.)
+
+tpms.cor <- cor(tpms.cutoff.matrix, method = 'spearman')
+head(tpms.cor)
+```
+
+Now we need to plot these and have similar samples (i.e. those that are highly correlated with each other) be clustered near to each other.
+We will use `pheatmap` to do this.
+```{r, fig.height=5, fig.width=7}
+library(pheatmap)
+
+#Make a dataframe of annotations
+annot <- data.frame(row.names = colnames(tpms.cor), timepoint = c(rep('DIVminus8', 4), rep('DIVminus4', 3),
+                                                                  rep('DIV0', 3), rep('DIV1', 4), rep('DIV7', 4),
+                                                                  rep('DIV16', 4), rep('DIV21', 4), rep('DIV28', 4)))
+pheatmap(tpms.cor, annotation_col = annot)
+```
+
+This looks pretty good! There are two main points to takeaway here.  First, all replicates for a given timepoint are clustering with each other. Second, you can kind of derive the order of the timepoints from the clustering. The biggest separation is between early (DIVminus8 to DIV1) and late (DIV7 to DIV28). After that you can then see finer-grained structure.
+
+## PCA analysis
+
+Another way to visualize the relationships and distances between samples is to use a dimensionality reduction technique called Principle Components Anlaysis or PCA.  PCA works best when values are approximately normally distributed, so we will first take the log of our expression values.
+
+With our cutoff as it is now (genes have to have expression of at least 1 TPM in half the samples), it is possible that we will have some 0 values. Taking the log of 0 might cause a problem, so we will add a pseudocount.
+
+```{r}
+tpms.cutoff.matrix <- dplyr::select(tpms.cutoff, -ensembl_gene_id) %>%
+  as.matrix(.)
+
+#Add pseudocount
+tpms.cutoff.matrix <- tpms.cutoff.matrix + 1e-3
+#Take log of values
+tpms.cutoff.matrix <- log(tpms.cutoff.matrix)
+```
+
+OK now we are ready to give this matrix to R's `prcomp` function to find principal components.
+```{r}
+#prcomp expects samples to be rownames, right now they are columns
+#so we need to transpose the matrix using `t`
+tpms.pca <- prcomp(t(tpms.cutoff.matrix))
+
+#The coordinates of samples on the principle components are stored in the $x slot
+#These are what we are going to use to plot
+#We can also also some data about the samples here so that our plot is a little more interesting
+tpms.pca.pc <- data.frame(tpms.pca$x) %>%
+  mutate(., sample = colnames(tpms.cutoff.matrix)) %>%
+  mutate(., timepoint = c(rep('DIVminus8', 4), rep('DIVminus4', 3),
+                          rep('DIV0', 3), rep('DIV1', 4), rep('DIV7', 4),
+                          rep('DIV16', 4), rep('DIV21', 4), rep('DIV28', 4)))
+
+head(tpms.pca.pc)
+
+#We can see how much of the total variance is explained by each PC using the summary function
+tpms.pca.summary <- summary(tpms.pca)$importance
+head(tpms.pca.summary)
+
+#The amount of variance explained by PC1 is the second row, first column of this table
+#It's given as a fraction of 1, so we multiply it by 100 to get a percentage
+pc1var = round(tpms.pca.summary[2,1] * 100, 1)
+
+#The amount of variance explained by PC2 is the second row, second column of this table
+pc2var <- round(tpms.pca.summary[2,2] * 100, 1)
+
+#Get decent looking colors.  See RColorBrewer package. This picks 8 colors from the palette Set1
+colors <- brewer.pal(8, 'Set1')
+
+#Reorder timepoints explicitly for plotting purposes
+tpms.pca.pc$timepoint <- factor(tpms.pca.pc$timepoint, levels = c('DIVminus8', 'DIVminus4', 'DIV0',
+                                                                  'DIV1', 'DIV7', 'DIV16', 'DIV21', 'DIV28'))
+
+#Plot results
+ggplot(tpms.pca.pc, aes(x = PC1, y = PC2, color = timepoint, label = sample)) + geom_point(size = 5)  +
+  scale_color_manual(values = colors, name = '') + theme_classic(16) + xlab(paste('PC1,', pc1var, '% explained var.')) + 
+  ylab(paste('PC2,', pc2var, '% explained var.')) + geom_text_repel()
+```
+
+All done.  With this plot you can almost trace the differentiation path.  Where is the biggest jump?  Which timepoints are very similar?
+
