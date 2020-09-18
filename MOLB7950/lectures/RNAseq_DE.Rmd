@@ -28,7 +28,7 @@ library(broom)
 
 Last time we took RNAseq data from an *in vitro* differentiation timecouse from mouse ESCs to glutaminergic neurons [(Hubbard et al, F1000 Research (2013))](10.12688/f1000research.2-35.v1). We took in transcript-level quantifications produced by `salmon` and collapsed them to gene-level quantifications using `tximport`. We then inspected the quality of the data by relating distances between samples using two methods: hierarchical clustering and principal components analysis. We found that the data was of high quality, as evidenced by the fact that replicates from a given timepoint were highly similar to other replicates for the same timepoint, and the distances between samples made sense with what we know about how the experiment was conducted.
 
-Today, we are going to pretend that this isn't a timecourse.  We are going to imagine that we have only two conditions: the first timepoint (DIVminus8) and the last timepoint (DIV28). We will use `DESeq2` to identify genes that are differentially expressed between these two timepoints.  We will then plot changes in expression for both individual genes and groups of genes that we already know going in might be interesting to look at. Finally, we will look at some features of transcripts and genes that are differentially expressed between these two timepoints.  We are not doing this two-timepoint comparsion because it is necessarily a good thing to do with timepoint data. Instead, we are doing this because often in an RNAseq experiment, you only have two conditions to compare.
+Today, we are going to pretend that this isn't a timecourse.  We are going to imagine that we have only two conditions: DIV0 and DIV7. We will use `DESeq2` to identify genes that are differentially expressed between these two timepoints.  We will then plot changes in expression for both individual genes and groups of genes that we already know going in might be interesting to look at. Finally, we will look at some features of transcripts and genes that are differentially expressed between these two timepoints.  We are not doing this two-timepoint comparsion because it is necessarily a good thing to do with timepoint data. Instead, we are doing this because often in an RNAseq experiment, you only have two conditions to compare.
 
 
 # Identifying differentially expressed genes with DESeq2
@@ -109,7 +109,7 @@ Another useful application of the `contrast` argument can be seen with more comp
 As we said before, with this formula, `DESeq2` will account for differences between replicates here to find differences between timepoints. However, what if we wanted to look at differences between replicate batches?  By supplying 'replicate' to `contrast` instead of 'timepoint', we could extract difference between these batches.
 ```{r}
 #For contrast, we give three strings: the factor we are interested in, the numerator, and the denominator
-#It makes the most sense (to me at least) to have DIV28 be the numerator
+#It makes the most sense (to me at least) to have DIV7 be the numerator
 results(dds, contrast = c('timepoint', 'DIV7', 'DIV0'))
 ```
 

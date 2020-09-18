@@ -151,7 +151,7 @@ We found that the data was of high quality, as evidenced by the fact that replic
 
 --
 
-Today, we are going to pretend that this isn't a timecourse.  We are going to imagine that we have only two conditions: the .blue[first timepoint (DIVminus8)] and the .orange[last timepoint (DIV28)]. We will use `DESeq2` to identify genes that are differentially expressed between these two timepoints.  
+Today, we are going to pretend that this isn't a timecourse.  We are going to imagine that we have only two conditions: .blue[DIV0] and .orange[DIV7]. We will use `DESeq2` to identify genes that are differentially expressed between these two timepoints.  
 
 We will then plot changes in expression for both individual genes and groups of genes that we already know going in might be interesting to look at. Finally, we will look at some features of transcripts and genes that are differentially expressed between these two timepoints.  We are not doing this two-timepoint comparsion because it is necessarily a good thing to do with timepoint data. Instead, we are doing this because often in an RNAseq experiment, you only have two conditions to compare.
 
@@ -366,7 +366,7 @@ There are many useful things in this `dds` object.  I encourage you to take a lo
 
 The results can be accessed using the aptly named `results()` function.
 
-We are going to include the `contrast` argument here. `DESeq2` reports changes in RNA abundance between two samples as a log2FoldChange. That's great, but it's often not clear exactly what the .hotpink[numerator] and .hotpink[denominator] of that fold change ratio is. In this case, it could be either DIV28/DIVminus8 or DIVminus8/DIV28.
+We are going to include the `contrast` argument here. `DESeq2` reports changes in RNA abundance between two samples as a log2FoldChange. That's great, but it's often not clear exactly what the .hotpink[numerator] and .hotpink[denominator] of that fold change ratio is. In this case, it could be either DIV7/DIV0 or DIV0/DIV7.
 
 --
 
@@ -379,7 +379,7 @@ In actuality, it's of course not random. The alphabetically first condition will
 ```r
 #For contrast, we give three strings: the factor we are interested in, 
 #the numerator, and the denominator
-#It makes the most sense (to me at least) to have DIV28 be the numerator
+#It makes the most sense (to me at least) to have DIV7 be the numerator
 results(dds, contrast = c('timepoint', 'DIV7', 'DIV0'))
 ```
 ]
@@ -416,7 +416,7 @@ OK, back to what we were doing.  Let's take a look at what `results()` will give
 ```r
 #For contrast, we give three strings: the factor we are interested in, 
 #the numerator, and the denominator
-#It makes the most sense (to me at least) to have DIV28 be the numerator
+#It makes the most sense (to me at least) to have DIV7 be the numerator
 results(dds, contrast = c('timepoint', 'DIV7', 'DIV0'))
 ```
 ]
